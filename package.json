@@ -1,0 +1,22 @@
+{
+  "name": "kat-gov",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.8.1",
+    "@types/pg": "^8.11.10",
+    "ts-node": "^10.9.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "pg": "^8.13.1"
+  }
+}
