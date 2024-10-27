@@ -12,4 +12,3 @@ export interface Proposal {
     snapshot?: Date; // Optional
     closevote?: Date; // Optional
 }
-

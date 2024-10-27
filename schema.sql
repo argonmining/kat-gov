@@ -1,8 +1,9 @@
 -- Table: candidates
 CREATE TABLE candidates (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL
-    -- Add other necessary fields here
+    name VARCHAR(100) NOT NULL,
+    position INTEGER REFERENCES positions(id), -- Added position reference
+    election INTEGER REFERENCES elections(id)  -- Added election reference
 );
 
 -- Table: proposal_types

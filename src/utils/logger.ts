@@ -7,4 +7,3 @@ export const logInfo = (message: string) => {
   export const logError = (message: string, error?: Error) => {
     console.error(`[ERROR] ${message}`, error || '');
   };
-  
