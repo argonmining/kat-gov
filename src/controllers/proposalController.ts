@@ -59,14 +59,12 @@ export const removeProposal = async (req: Request, res: Response, next: NextFunc
       res.status(400).json({ error: 'Invalid proposal ID' });
       return; // Exit the function after sending a response
     }
-    const success = await deleteProposal(proposalId);
-    if (success) {
-      res.status(204).send();
-    } else {
-      res.status(404).json({ error: 'Proposal not found' });
-    }
+    console.log('Attempting to delete proposal with ID:', proposalId);
+    await deleteProposal(proposalId);
+    res.status(204).send();
   } catch (error) {
-    next(error); // Pass error to centralized handler
+    console.error('Error in removeProposal:', error);
+    res.status(500).json({ error: 'Failed to delete proposal' });
   }
 };
 

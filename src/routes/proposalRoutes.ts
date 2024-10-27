@@ -6,8 +6,8 @@ const router = Router();
 
 router.post('/proposals', validateProposal, submitProposal);
 router.get('/proposals', fetchAllProposals);
-router.put('/proposals/:proposalId', validateProposal, modifyProposal); // Add validation
-router.delete('/proposals/:proposalId', validateProposal, removeProposal); // Add validation
+router.put('/proposals/:proposalId', modifyProposal); // Add validation
+router.delete('/proposals/:proposalId', removeProposal); // Add delete route
 router.post('/proposals/:proposalId/nominate', nominateProposal);
 
 export default router;

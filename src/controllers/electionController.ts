@@ -4,6 +4,7 @@ import { createElection } from '../models/Election';
 import { Election } from '../types/Election';
 import { getAllElections } from '../models/Election';
 import { createElectionNomination } from '../models/ElectionNomination';
+import { deleteElection } from '../models/Election';
 
 export const submitElection = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -38,6 +39,16 @@ export const nominateCandidate = async (req: Request, res: Response, next: NextF
 
     await createElectionNomination(electionId, candidateId, amount, hash);
     res.status(201).json({ message: 'Candidate nominated successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const removeElection = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const electionId = parseInt(req.params.id, 10);
+    await deleteElection(electionId);
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

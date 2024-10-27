@@ -71,10 +71,14 @@ export const updateProposal = async (id: number, proposal: Partial<Proposal>): P
   return result.rows[0] || null;
 };
 
-export const deleteProposal = async (id: number): Promise<boolean> => {
-  const query = 'DELETE FROM proposals WHERE id = $1';
+export const deleteProposal = async (id: number): Promise<void> => {
+  const query = 'DELETE FROM proposals WHERE id = $1 RETURNING *';
   const result = await pool.query(query, [id]);
-  return result.rowCount !== null && result.rowCount > 0;
+
+  if (result.rowCount === 0) {
+    throw new Error('Proposal not found');
+  }
+  // No return statement needed, as the function should return void
 };
 
 // Additional CRUD operations can be added here

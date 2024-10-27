@@ -20,5 +20,10 @@ export const getAllElections = async (): Promise<Election[]> => {
   return result.rows;
 };
 
-// Additional CRUD operations can be added here
+// Implement the deleteElection function
+export const deleteElection = async (id: number): Promise<void> => {
+  const query = 'DELETE FROM elections WHERE id = $1';
+  await pool.query(query, [id]);
+};
 
+// Additional CRUD operations can be added here
