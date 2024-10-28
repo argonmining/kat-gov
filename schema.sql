@@ -42,7 +42,8 @@ CREATE TABLE proposals (
     submitdate TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     openvote TIMESTAMP,
     snapshot TIMESTAMP,
-    closevote TIMESTAMP
+    closevote TIMESTAMP,
+    dynamic_wallet_id INTEGER REFERENCES dynamic_wallets(id) ON DELETE SET NULL -- New reference for dynamic wallet
 );
 
 -- Table: proposal_votes
@@ -53,7 +54,8 @@ CREATE TABLE proposal_votes (
     approve BOOLEAN,
     valid BOOLEAN DEFAULT TRUE,
     proposal INTEGER REFERENCES proposals(id),
-    submitdate TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    submitdate TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    transaction_id TEXT UNIQUE -- New transaction tracking field
 );
 
 -- Table: proposal_nominations
@@ -77,7 +79,8 @@ CREATE TABLE elections (
     openvote TIMESTAMP,
     snapshot TIMESTAMP,
     closevote TIMESTAMP,
-    winner INTEGER REFERENCES candidates(id)
+    winner INTEGER REFERENCES candidates(id),
+    dynamic_wallet_id INTEGER REFERENCES dynamic_wallets(id) ON DELETE SET NULL -- New reference for dynamic wallet
 );
 
 -- Table: election_votes
@@ -89,7 +92,8 @@ CREATE TABLE election_votes (
     election INTEGER REFERENCES elections(id),
     valid BOOLEAN DEFAULT TRUE,
     hash TEXT NOT NULL,
-    submitdate TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    submitdate TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    transaction_id TEXT UNIQUE -- New transaction tracking field
 );
 
 -- Table: candidate_nominations
@@ -103,4 +107,14 @@ CREATE TABLE candidate_nominations (
     election INTEGER REFERENCES elections(id),
     position INTEGER REFERENCES positions(id),
     submitdate TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Table: dynamic_wallets
+CREATE TABLE dynamic_wallets (
+    id SERIAL PRIMARY KEY,
+    wallet_address TEXT NOT NULL UNIQUE,
+    encrypted_private_key TEXT NOT NULL,
+    proposal_id INTEGER REFERENCES proposals(id) ON DELETE CASCADE,
+    election_id INTEGER REFERENCES elections(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
