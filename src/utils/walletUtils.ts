@@ -1,5 +1,8 @@
 import { Mnemonic, XPrv } from '../wasm/kaspa';
-import { encryptPrivateKey } from './encryptionUtils.js';
+import { encryptPrivateKey } from './encryptionUtils';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 interface WalletDetails {
   mnemonic: string;
@@ -7,7 +10,10 @@ interface WalletDetails {
   address: string;
 }
 
-export async function createKaspaWallet(network: string = 'testnet-10'): Promise<WalletDetails> {
+export async function createKaspaWallet(): Promise<WalletDetails> {
+  // Set the network from environment variable or default to 'testnet-10'
+  const network = process.env.KASPA_NETWORK || 'testnet-10';
+  
   // Generate a new mnemonic phrase for wallet creation
   const mnemonic = Mnemonic.random();
   const seed = mnemonic.toSeed();
