@@ -14,7 +14,9 @@ import { handleError } from './utils/errorHandler'; // Import error handler
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: '*'
+}));
 app.use(json());
 app.use(urlencoded({ extended: true }));
 
