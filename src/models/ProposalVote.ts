@@ -1,6 +1,6 @@
 // src/models/ProposalVote.ts
-import pool from '../config/db';
-import { ProposalVote } from '../types/ProposalVote';
+import pool from '../config/db.js';
+import { ProposalVote } from '../types/ProposalVote.js';
 
 export const createProposalVote = async (vote: Omit<ProposalVote, 'id'>): Promise<ProposalVote> => {
   const { amt, hash, approve, valid, proposal, submitdate } = vote;

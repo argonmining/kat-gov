@@ -1,6 +1,6 @@
 // src/models/Proposal.ts
-import pool from '../config/db';
-import { Proposal } from '../types/Proposal';
+import pool from '../config/db.js';
+import { Proposal } from '../types/Proposal.js';
 
 export const createProposal = async (proposal: Omit<Proposal, 'id'>): Promise<Proposal> => {
   const { title, subtitle, body, type, submitdate } = proposal;

@@ -1,6 +1,6 @@
 // src/routes/electionRoutes.ts
 import { Router } from 'express';
-import { submitElection, fetchAllElections, nominateCandidate, removeElection } from '../controllers/electionController';
+import { submitElection, fetchAllElections, nominateCandidate, removeElection } from '../controllers/electionController.js';
 
 const router = Router();
 

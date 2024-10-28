@@ -1,6 +1,6 @@
 // src/models/ElectionVote.ts
-import pool from '../config/db';
-import { ElectionVote } from '../types/ElectionVote';
+import pool from '../config/db.js';
+import { ElectionVote } from '../types/ElectionVote.js';
 
 export const createElectionVote = async (vote: Omit<ElectionVote, 'id'>): Promise<ElectionVote> => {
   const { amt, candidate, position, election, valid, hash, submitdate } = vote;

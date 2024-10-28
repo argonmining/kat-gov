@@ -1,6 +1,6 @@
 // src/routes/proposalVoteRoutes.ts
 import { Router } from 'express';
-import { submitProposalVote, fetchVotesForProposal } from '../controllers/proposalVoteController';
+import { submitProposalVote, fetchVotesForProposal } from '../controllers/proposalVoteController.js';
 
 const router = Router();
 

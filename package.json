@@ -1,7 +1,7 @@
 {
   "name": "kat-gov",
-  "module": "index.ts",
   "type": "module",
+  "main": "dist/index.js",
   "devDependencies": {
     "@types/bun": "latest",
     "@types/cors": "^2.8.17",
@@ -14,6 +14,7 @@
     "typescript": "^5.6.3"
   },
   "dependencies": {
+    "@types/axios": "^0.14.4",
     "@types/jest": "^29.5.14",
     "@types/minimist": "^1.2.5",
     "@types/supertest": "^6.0.2",

@@ -1,8 +1,8 @@
 // src/controllers/electionVoteController.ts
 import { Request, Response } from 'express';
-import { createElectionVote } from '../models/ElectionVote';
-import { ElectionVote } from '../types/ElectionVote';
-import { getVotesForElection } from '../models/ElectionVote';
+import { createElectionVote } from '../models/ElectionVote.js';
+import { ElectionVote } from '../types/ElectionVote.js';
+import { getVotesForElection } from '../models/ElectionVote.js';
 
 export const submitElectionVote = async (req: Request, res: Response): Promise<void> => {
   try {

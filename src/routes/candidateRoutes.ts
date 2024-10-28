@@ -1,6 +1,6 @@
 // src/routes/candidateRoutes.ts
 import { Router } from 'express';
-import { submitCandidate, fetchAllCandidates } from '../controllers/candidateController';
+import { submitCandidate, fetchAllCandidates } from '../controllers/candidateController.js';
 
 const router = Router();
 

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { getAllPositions, createPosition, updatePosition, deletePosition } from '../models/Position';
+import { getAllPositions, createPosition, updatePosition, deletePosition } from '../models/Position.js';
 
 export const fetchAllPositions = async (req: Request, res: Response, next: NextFunction) => {
   try {

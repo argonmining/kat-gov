@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { validateProposal } from '../middlewares/validationMiddleware';
-import { submitProposal, fetchAllProposals, modifyProposal, removeProposal, nominateProposal } from '../controllers/proposalController';
+import { validateProposal } from '../middlewares/validationMiddleware.js';
+import { submitProposal, fetchAllProposals, modifyProposal, removeProposal, nominateProposal } from '../controllers/proposalController.js';
 
 const router = Router();
 

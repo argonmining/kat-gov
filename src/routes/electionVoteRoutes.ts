@@ -1,6 +1,6 @@
 // src/routes/electionVoteRoutes.ts
 import { Router } from 'express';
-import { submitElectionVote, fetchVotesForElection } from '../controllers/electionVoteController';
+import { submitElectionVote, fetchVotesForElection } from '../controllers/electionVoteController.js';
 
 const router = Router();
 

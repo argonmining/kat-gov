@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
-import { createProposal } from '../models/Proposal';
-import { Proposal } from '../types/Proposal';
-import { getAllProposals } from '../models/Proposal';
-import { updateProposal, deleteProposal } from '../models/Proposal';
-import { createProposalNomination } from '../models/ProposalNomination';
+import { createProposal } from '../models/Proposal.js';
+import { Proposal } from '../types/Proposal.js';
+import { getAllProposals } from '../models/Proposal.js';
+import { updateProposal, deleteProposal } from '../models/Proposal.js';
+import { createProposalNomination } from '../models/ProposalNomination.js';
 
 export const submitProposal = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {

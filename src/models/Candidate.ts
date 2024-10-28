@@ -1,6 +1,6 @@
 // src/models/Candidate.ts
-import pool from '../config/db';
-import { Candidate } from '../types/Candidate';
+import pool from '../config/db.js';
+import { Candidate } from '../types/Candidate.js';
 
 export const createCandidate = async (candidate: Omit<Candidate, 'id'>): Promise<Candidate> => {
   const { name, position, election } = candidate;

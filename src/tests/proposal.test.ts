@@ -1,5 +1,5 @@
 import request from 'supertest';
-import app from '../app'; // Import your Express app
+import app from '../app.js'; // Import your Express app
 
 describe('Proposals API', () => {
   let proposalId: number;

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { fetchAllStatuses, addStatus, modifyStatus, removeStatus } from '../controllers/statusController';
+import { fetchAllStatuses, addStatus, modifyStatus, removeStatus } from '../controllers/statusController.js';
 
 const router = Router();
 

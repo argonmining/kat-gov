@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { getAllProposalTypes, createProposalType, updateProposalType, deleteProposalType } from '../models/ProposalType';
+import { getAllProposalTypes, createProposalType, updateProposalType, deleteProposalType } from '../models/ProposalType.js';
 
 export const fetchAllProposalTypes = async (req: Request, res: Response, next: NextFunction) => {
   try {

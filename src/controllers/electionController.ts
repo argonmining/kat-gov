@@ -1,10 +1,10 @@
 // src/controllers/electionController.ts
 import { Request, Response, NextFunction } from 'express';
-import { createElection } from '../models/Election';
-import { Election } from '../types/Election';
-import { getAllElections } from '../models/Election';
-import { createElectionNomination } from '../models/ElectionNomination';
-import { deleteElection } from '../models/Election';
+import { createElection } from '../models/Election.js';
+import { Election } from '../types/Election.js';
+import { getAllElections } from '../models/Election.js';
+import { createElectionNomination } from '../models/ElectionNomination.js';
+import { deleteElection } from '../models/Election.js';
 
 export const submitElection = async (req: Request, res: Response): Promise<void> => {
   try {

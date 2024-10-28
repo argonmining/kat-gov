@@ -1,4 +1,4 @@
-import pool from '../config/db';
+import pool from '../config/db.js';
 
 export const getAllProposalTypes = async () => {
   const result = await pool.query('SELECT * FROM proposal_types');

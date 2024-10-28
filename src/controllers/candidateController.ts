@@ -1,8 +1,8 @@
 // src/controllers/candidateController.ts
 import { Request, Response } from 'express';
-import { createCandidate } from '../models/Candidate';
-import { Candidate } from '../types/Candidate';
-import { getAllCandidates } from '../models/Candidate';
+import { createCandidate } from '../models/Candidate.js';
+import { Candidate } from '../types/Candidate.js';
+import { getAllCandidates } from '../models/Candidate.js';
 
 export const submitCandidate = async (req: Request, res: Response): Promise<void> => {
   try {

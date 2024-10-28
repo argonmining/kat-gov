@@ -1,5 +1,5 @@
 import request from 'supertest';
-import app from '../app';
+import app from '../app.js';
 
 describe('Positions API', () => {
   let positionId: number;

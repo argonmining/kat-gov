@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { getAllStatuses, createStatus, updateStatus, deleteStatus } from '../models/Status';
+import { getAllStatuses, createStatus, updateStatus, deleteStatus } from '../models/Status.js';
 
 export const fetchAllStatuses = async (req: Request, res: Response, next: NextFunction) => {
   try {

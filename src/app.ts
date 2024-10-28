@@ -1,15 +1,15 @@
 import express from 'express';
 import cors from 'cors';
 import { json, urlencoded } from 'express';
-import proposalRoutes from './routes/proposalRoutes';
-import electionRoutes from './routes/electionRoutes';
-import proposalVoteRoutes from './routes/proposalVoteRoutes';
-import electionVoteRoutes from './routes/electionVoteRoutes';
-import candidateRoutes from './routes/candidateRoutes';
-import positionRoutes from './routes/positionRoutes';
-import proposalTypeRoutes from './routes/proposalTypeRoutes';
-import statusRoutes from './routes/statusRoutes';
-import { handleError } from './utils/errorHandler'; // Import error handler
+import proposalRoutes from './routes/proposalRoutes.js';
+import electionRoutes from './routes/electionRoutes.js';
+import proposalVoteRoutes from './routes/proposalVoteRoutes.js';
+import electionVoteRoutes from './routes/electionVoteRoutes.js';
+import candidateRoutes from './routes/candidateRoutes.js';
+import positionRoutes from './routes/positionRoutes.js';
+import proposalTypeRoutes from './routes/proposalTypeRoutes.js';
+import statusRoutes from './routes/statusRoutes.js';
+import { handleError } from './utils/errorHandler.js'; // Import error handler
 
 const app = express();
 

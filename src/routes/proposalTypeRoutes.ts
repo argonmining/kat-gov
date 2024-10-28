@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { fetchAllProposalTypes, addProposalType, modifyProposalType, removeProposalType } from '../controllers/proposalTypeController';
+import { fetchAllProposalTypes, addProposalType, modifyProposalType, removeProposalType } from '../controllers/proposalTypeController.js';
 
 const router = Router();
 

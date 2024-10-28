@@ -1,4 +1,4 @@
-import pool from '../config/db';
+import pool from '../config/db.js';
 
 export const createProposalNomination = async (proposalId: number, amount: number, hash: string): Promise<void> => {
   const query = `

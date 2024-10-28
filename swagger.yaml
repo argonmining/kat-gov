@@ -4,7 +4,7 @@ info:
   description: API documentation for the Kat Gov governance application.
   version: 1.0.0
 servers:
-  - url: http://localhost:7878/api
+  - url: https://govapi.nachowyborski.xyz/api
     description: Local development server
 
 paths:
