@@ -27,7 +27,7 @@ router.post('/burnkaspa', async (req, res, next) => {
 router.post('/returnkaspa', async (req, res, next) => {
   try {
     const { walletId, amount } = req.body;
-    const hash = await returnGovKaspa(walletId, amount);
+    const hash = await returnGovKaspa(walletId);
     res.status(200).json({ transactionHash: hash });
   } catch (error) {
     next(error); // Pass error to centralized handler
