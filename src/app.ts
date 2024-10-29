@@ -9,7 +9,13 @@ import candidateRoutes from './routes/candidateRoutes.js';
 import positionRoutes from './routes/positionRoutes.js';
 import proposalTypeRoutes from './routes/proposalTypeRoutes.js';
 import statusRoutes from './routes/statusRoutes.js';
-import { handleError } from './utils/errorHandler.js'; // Import error handler
+import burnRoutes from './routes/burnRoutes.js';
+import { handleError } from './utils/errorHandler.js';
+import pkg from 'websocket';
+
+const { w3cwebsocket: W3CWebSocket } = pkg;
+
+globalThis.WebSocket = W3CWebSocket as any;
 
 const app = express();
 
@@ -33,6 +39,7 @@ app.use('/api', candidateRoutes);
 app.use('/api', positionRoutes);
 app.use('/api', proposalTypeRoutes);
 app.use('/api', statusRoutes);
+app.use('/api', burnRoutes);
 
 // Error handling middleware
 app.use(handleError);

@@ -17,6 +17,7 @@ export const submitProposal = async (req: Request, res: Response, next: NextFunc
 
     // Create a new dynamic wallet entry
     const dynamicWalletId = await createDynamicWallet(walletDetails.address, walletDetails.encryptedPrivateKey);
+    console.log(`Created dynamic wallet with ID: ${dynamicWalletId}`);
 
     // Add wallet details and defaults to the proposal
     const newProposal = await createProposal({
