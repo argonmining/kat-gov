@@ -15,7 +15,7 @@ const BASE_URL = process.env.KASPLEX_API_BASE_URL;
 export async function getKRC20Balance(address: string, tick: string): Promise<any> {
   try {
     const response = await axios.get(`${BASE_URL}/address/${address}/token/${tick}`);
-    return response.data.result;
+    return response.data;
   } catch (error) {
     console.error('Error in getKRC20Balance:', error);
     throw error;
