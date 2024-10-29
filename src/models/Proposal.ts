@@ -3,13 +3,13 @@ import pool from '../config/db.js';
 import { Proposal } from '../types/Proposal.js';
 
 export const createProposal = async (proposal: Omit<Proposal, 'id'>): Promise<Proposal> => {
-  const { title, subtitle, body, type, submitdate } = proposal;
+  const { title, subtitle, body, type, submitdate, dynamic_wallet_id, approved, reviewed, status } = proposal;
   const query = `
-    INSERT INTO proposals (title, subtitle, body, type, submitdate)
-    VALUES ($1, $2, $3, $4, $5)
+    INSERT INTO proposals (title, subtitle, body, type, submitdate, dynamic_wallet_id, approved, reviewed, status)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     RETURNING *;
   `;
-  const values = [title, subtitle, body, type, submitdate];
+  const values = [title, subtitle, body, type, submitdate, dynamic_wallet_id, approved, reviewed, status];
   try {
     const result = await pool.query(query, values);
     return result.rows[0];
@@ -79,6 +79,17 @@ export const deleteProposal = async (id: number): Promise<void> => {
     throw new Error('Proposal not found');
   }
   // No return statement needed, as the function should return void
+};
+
+export const getProposalById = async (id: number): Promise<any> => {
+  const query = `
+    SELECT p.*, dw.wallet_address
+    FROM proposals p
+    LEFT JOIN dynamic_wallets dw ON p.dynamic_wallet_id = dw.id
+    WHERE p.id = $1;
+  `;
+  const result = await pool.query(query, [id]);
+  return result.rows[0];
 };
 
 // Additional CRUD operations can be added here

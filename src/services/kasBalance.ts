@@ -1,4 +1,4 @@
-import { RpcClient, IGetBalanceByAddressRequest } from "../wasm/kaspa";
+import { RpcClient, IGetBalanceByAddressRequest } from "../wasm/kaspa/kaspa.js";
 
 class BalanceChecker {
   private address: string;
@@ -21,8 +21,12 @@ class BalanceChecker {
       const balance = await this.rpcClient.getBalanceByAddress(balanceRequest);
       return String(balance);
     } catch (error) {
-      console.error(`Error fetching balance: ${error.message}`);
-      throw error;
+      if (error instanceof Error) {
+        console.error(`Error fetching balance: ${error.message}`);
+      } else {
+        console.error('Unknown error fetching balance');
+      }
+      throw error; // Re-throw the error to be handled by a centralized error handler
     }
   }
 }

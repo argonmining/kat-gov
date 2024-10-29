@@ -10,6 +10,6 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["jest"]
   },
-  "include": ["src/**/*.ts", "wasm/**/*.ts", "types/**/*.d.ts"],
+  "include": ["src/**/*.ts", "src/wasm/**/*.ts", "types/**/*.d.ts"],
   "exclude": ["node_modules"]
 }

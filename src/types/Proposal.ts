@@ -11,4 +11,5 @@ export interface Proposal {
     openvote?: Date; // Optional
     snapshot?: Date; // Optional
     closevote?: Date; // Optional
+    dynamic_wallet_id?: number; // Change this to number
 }

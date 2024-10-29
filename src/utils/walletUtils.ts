@@ -1,5 +1,5 @@
-import { Mnemonic, XPrv } from '../wasm/kaspa';
-import { encryptPrivateKey } from './encryptionUtils';
+import { Mnemonic, XPrv } from '../wasm/kaspa/kaspa.js';
+import { encryptPrivateKey } from './encryptionUtils.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
