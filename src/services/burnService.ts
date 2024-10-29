@@ -2,13 +2,13 @@ import { getEncryptedPrivateKey } from '../models/DynamicWallet.js';
 import { decryptPrivateKey } from '../utils/encryptionUtils.js';
 import TransactionSender from '../utils/transactionSender.js';
 import { getBalance } from './kaspaAPI.js';
-import { RpcClient, Encoding, Resolver, ScriptBuilder, Opcodes, PrivateKey, addressFromScriptPublicKey, createTransactions, kaspaToSompi, UtxoProcessor, UtxoContext } from '../wasm/kaspa/kaspa.js';
+import { RpcClient, Encoding, Resolver, ScriptBuilder, Opcodes, PrivateKey, addressFromScriptPublicKey, createTransactions, kaspaToSompi, sompiToKaspaString, UtxoProcessor, UtxoContext } from '../wasm/kaspa/kaspa.js';
 
 const BURN_ADDRESS = 'kaspa:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx9awp4e';
 const GOV_ADDRESS = process.env.GOV_ADDRESS || 'kaspa:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx9awp4e';
 const NETWORK_ID = process.env.KASPA_NETWORK || 'testnet-10';
 const ticker = process.env.GOV_TOKEN_TICKER || 'KNACHO';
-const priorityFeeValue = process.env.PRIORITY_FEE_VALUE || '0.75';
+const priorityFeeValue = process.env.PRIORITY_FEE_VALUE || '0.5';
 const timeout = parseInt(process.env.TIMEOUT || '120000', 10);
 
 let addedEventTrxId: any;
@@ -309,8 +309,8 @@ export async function returnGovKaspa(walletId: number): Promise<string> {
         // Get balance and calculate amount
         console.log('Fetching balance...');
         const balanceData = await getBalance(address.toString());
-        const balance = parseFloat(balanceData.balance);
-        const amount = balance - (parseFloat(priorityFeeValue) * Math.pow(10, 8));
+        const balance = sompiToKaspaString(balanceData.balance);
+        const amount = parseFloat(balance) - parseFloat(priorityFeeValue);
         console.log(`Calculated amount to return: ${amount}`);
 
         if (amount <= 0) {
@@ -343,6 +343,80 @@ export async function returnGovKaspa(walletId: number): Promise<string> {
 
     } catch (error: any) { // Explicitly type the error
         console.error('Error returning Kaspa to Gov:', error.message || error);
+        throw error;
+    } finally {
+        if (RPC) {
+            console.log('Disconnecting RPC client...');
+            await RPC.disconnect(); // Ensure disconnection
+            console.log('RPC client disconnected.');
+        }
+    }
+
+    if (!transactionId) {
+        throw new Error('No transaction was submitted.');
+    }
+    return transactionId;
+}
+
+export async function dropKasGas(walletId: number): Promise<string> {
+    let transactionId: string | undefined;
+    let RPC: RpcClient | undefined;
+    try {
+        // Initialize RPC client
+        console.log('Initializing RPC client...');
+        RPC = new RpcClient({
+            resolver: new Resolver(),
+            encoding: Encoding.Borsh,
+            networkId: NETWORK_ID
+        });
+        await RPC.disconnect();
+        await RPC.connect();
+        console.log('RPC client connected.');
+
+        // Fetch the encrypted private key
+        console.log(`Fetching encrypted private key for walletId: ${walletId}`);
+        const encryptedPrivateKey = await getEncryptedPrivateKey(walletId);
+        if (!encryptedPrivateKey) {
+            console.error(`No encrypted private key found for walletId: ${walletId}`);
+            throw new Error('Wallet not found or no private key available.');
+        }
+
+        // Decrypt the private key
+        console.log('Decrypting private key...');
+        const destprivateKeyStr = decryptPrivateKey(encryptedPrivateKey);
+        const destprivateKey = new PrivateKey(destprivateKeyStr);
+        const destpublicKey = destprivateKey.toPublicKey();
+        const destinationAddress = destpublicKey.toAddress(NETWORK_ID);
+        console.log(`Address derived from public key: ${destinationAddress.toString()}`);
+        const privateKey = new PrivateKey(process.env.GOV_PRIVATE_KEY!);
+        const amount = '5';
+
+        // Check server info
+        console.log('Fetching server info...');
+        const serverInfo = await RPC.getServerInfo();
+        if (!serverInfo.isSynced || !serverInfo.hasUtxoIndex) {
+            console.error('Provided node is either not synchronized or lacks the UTXO index.');
+            throw new Error('Provided node is either not synchronized or lacks the UTXO index.');
+        }
+
+        // Send transaction
+        try {
+            console.log('Sending transaction...');
+            const transactionSender = new TransactionSender(NETWORK_ID, privateKey, RPC);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for a second
+            transactionId = await transactionSender.transferFunds(destinationAddress.toString(), amount);
+            console.log(`Transaction submitted with ID: ${transactionId}`);
+        } catch (error: any) { // Explicitly type the error
+            console.error(`Error in transaction sending: ${error.message}`);
+            throw error;
+        }
+
+        // Wait for transaction confirmation
+        console.log('Waiting for transaction confirmation...');
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for 5 seconds
+
+    } catch (error: any) { // Explicitly type the error
+        console.error('Error burning Kaspa:', error.message || error);
         throw error;
     } finally {
         if (RPC) {
