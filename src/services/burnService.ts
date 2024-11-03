@@ -1,4 +1,4 @@
-import { getEncryptedPrivateKey } from '../models/DynamicWallet.js';
+import { getEncryptedPrivateKey } from '../models/CandidateWallet.js';
 import { decryptPrivateKey } from '../utils/encryptionUtils.js';
 import TransactionSender from '../utils/transactionSender.js';
 import { getBalance } from './kaspaAPI.js';

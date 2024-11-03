@@ -5,11 +5,11 @@ export const validateProposal = (req: Request, res: Response, next: NextFunction
   const { title, type } = req.body;
   if (!title || typeof title !== 'string') {
     res.status(400).json({ error: 'Title is required and must be a string' });
-    return; // Ensure the function exits after sending a response
+    return;
   }
   if (!type || typeof type !== 'number') {
     res.status(400).json({ error: 'Type is required and must be a number' });
-    return; // Ensure the function exits after sending a response
+    return;
   }
   next();
 };

@@ -23,7 +23,7 @@ export default class TransactionSender extends EventEmitter {
 
   async transferFunds(address: string, amount: string) {
 
-    console.log(`TrxManager: Crearting Transaction`)
+    console.log(`TrxManager: Creating Transaction`)
     let payments: IPaymentOutput[] = [{
       address: address,
       amount: kaspaToSompi(amount)!

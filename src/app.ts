@@ -1,15 +1,23 @@
 import express from 'express';
 import cors from 'cors';
 import { json, urlencoded } from 'express';
-import proposalRoutes from './routes/proposalRoutes.js';
-import electionRoutes from './routes/electionRoutes.js';
-import proposalVoteRoutes from './routes/proposalVoteRoutes.js';
-import electionVoteRoutes from './routes/electionVoteRoutes.js';
-import candidateRoutes from './routes/candidateRoutes.js';
-import positionRoutes from './routes/positionRoutes.js';
-import proposalTypeRoutes from './routes/proposalTypeRoutes.js';
-import statusRoutes from './routes/statusRoutes.js';
+import proposalRoutes from './routes/proposalsRoutes.js';
+import proposalSnapshotsRoutes from './routes/proposalSnapshotsRoutes.js';
+import electionsRoutes from './routes/electionsRoutes.js';
+import proposalVotesRoutes from './routes/proposalVotesRoutes.js';
+import candidateVoteRoutes from './routes/candidateVoteRoutes.js';
+import electionCandidateRoutes from './routes/electionCandidateRoutes.js';
+import electionPositionRoutes from './routes/electionPositionRoutes.js';
+import proposalTypesRoutes from './routes/proposalTypesRoutes.js';
+import proposalStatusesRoutes from './routes/proposalStatusesRoutes.js';
 import burnRoutes from './routes/burnRoutes.js';
+import electionTypesRoutes from './routes/electionTypesRoutes.js';
+import electionStatusesRoutes from './routes/electionStatusesRoutes.js';
+import candidateWalletsRoutes from './routes/candidateWalletsRoutes.js';
+import proposalYesVotesRoutes from './routes/proposalYesVotesRoutes.js';
+import proposalNoVotesRoutes from './routes/proposalNoVotesRoutes.js';
+import proposalNominationsRoutes from './routes/proposalNominationsRoutes.js';
+import candidateNominationsRoutes from './routes/candidateNominationsRoutes.js';
 import { handleError } from './utils/errorHandler.js';
 import pkg from 'websocket';
 
@@ -32,14 +40,22 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api', proposalRoutes);
-app.use('/api', electionRoutes);
-app.use('/api', proposalVoteRoutes);
-app.use('/api', electionVoteRoutes);
-app.use('/api', candidateRoutes);
-app.use('/api', positionRoutes);
-app.use('/api', proposalTypeRoutes);
-app.use('/api', statusRoutes);
+app.use('/api', proposalSnapshotsRoutes);
+app.use('/api', electionsRoutes);
+app.use('/api', proposalVotesRoutes);
+app.use('/api', candidateVoteRoutes);
+app.use('/api', electionCandidateRoutes);
+app.use('/api', electionPositionRoutes);
+app.use('/api', proposalTypesRoutes);
+app.use('/api', proposalStatusesRoutes);
 app.use('/api', burnRoutes);
+app.use('/api', electionTypesRoutes);
+app.use('/api', electionStatusesRoutes);
+app.use('/api', candidateWalletsRoutes);
+app.use('/api', proposalYesVotesRoutes);
+app.use('/api', proposalNoVotesRoutes);
+app.use('/api', proposalNominationsRoutes);
+app.use('/api', candidateNominationsRoutes);
 
 // Error handling middleware
 app.use(handleError);

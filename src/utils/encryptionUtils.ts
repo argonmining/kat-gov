@@ -7,7 +7,7 @@ export function encryptPrivateKey(privateKey: string): string {
     const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(encryptionKey), iv);
     let encrypted = cipher.update(privateKey, 'utf8', 'hex');
     encrypted += cipher.final('hex');
-    return iv.toString('hex') + ':' + encrypted; // Store IV with the encrypted text
+    return iv.toString('hex') + ':' + encrypted;
 }
 
 export function decryptPrivateKey(encrypted: string): string {
