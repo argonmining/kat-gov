@@ -357,6 +357,15 @@ components:
         closevote:
           type: string
           format: date-time
+        wallet:
+          type: integer
+        submitted:
+          type: string
+          format: date-time
+        votesActive:
+          type: boolean
+        passed:
+          type: boolean
 
     Election:
       type: object

@@ -3,13 +3,13 @@ import { Proposal } from '../types/Proposals.js';
 
 export const createProposal = async (proposal: Omit<Proposal, 'id'>): Promise<Proposal> => {
   try {
-    const { title, description, body, type, submitted, reviewed, approved, passed, votesActive, openVote, closeVote } = proposal;
+    const { title, description, body, type, submitted, reviewed, approved, passed, votesActive, openVote, closeVote, wallet, status } = proposal;
     const query = `
-      INSERT INTO proposals (title, description, body, type, submitted, reviewed, approved, passed, votesActive, openVote, closeVote)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO proposals (title, description, body, type, submitted, reviewed, approved, passed, votesActive, openVote, closeVote, wallet, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *;
     `;
-    const values = [title, description, body, type, submitted, reviewed, approved, passed, votesActive, openVote, closeVote];
+    const values = [title, description, body, type, submitted, reviewed, approved, passed, votesActive, openVote, closeVote, wallet, status];
     const result = await pool.query(query, values);
     return result.rows[0];
   } catch (error) {
@@ -54,7 +54,7 @@ export const getAllProposals = async (filters: any, sort: string, limit: number,
 
 export const updateProposal = async (id: number, proposal: Partial<Proposal>): Promise<Proposal | null> => {
   try {
-    const { title, description, body, type, reviewed, approved, passed, votesActive, openVote, closeVote } = proposal;
+    const { title, description, body, type, reviewed, approved, passed, votesActive, openVote, closeVote, status } = proposal;
     const query = `
       UPDATE proposals
       SET title = COALESCE($1, title),
@@ -66,11 +66,12 @@ export const updateProposal = async (id: number, proposal: Partial<Proposal>): P
           passed = COALESCE($7, passed),
           votesActive = COALESCE($8, votesActive),
           openVote = COALESCE($9, openVote),
-          closeVote = COALESCE($10, closeVote)
-      WHERE id = $11
+          closeVote = COALESCE($10, closeVote),
+          status = COALESCE($11, status)
+      WHERE id = $12
       RETURNING *;
     `;
-    const values = [title, description, body, type, reviewed, approved, passed, votesActive, openVote, closeVote, id];
+    const values = [title, description, body, type, reviewed, approved, passed, votesActive, openVote, closeVote, status, id];
     const result = await pool.query(query, values);
     return result.rows[0] || null;
   } catch (error) {

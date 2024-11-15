@@ -3,7 +3,7 @@ import { createProposal, getAllProposals, updateProposal, deleteProposal, getPro
 import { Proposal } from '../types/Proposals.js';
 import { createProposalNomination } from '../models/ProposalNominations.js';
 import { createKaspaWallet } from '../utils/walletUtils.js'; // Import the wallet generation function
-import { createCandidateWallet } from '../models/CandidateWallet.js';
+import { createProposalWallet } from '../models/ProposalWallet.js'; // Import the correct wallet model
 
 export const submitProposal = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -12,9 +12,9 @@ export const submitProposal = async (req: Request, res: Response, next: NextFunc
     // Generate a new wallet
     const walletDetails = await createKaspaWallet();
 
-    // Create a new candidate wallet entry
-    const candidateWalletId = await createCandidateWallet(walletDetails.address, walletDetails.encryptedPrivateKey);
-    console.log(`Created candidate wallet with ID: ${candidateWalletId}`);
+    // Create a new proposal wallet entry
+    const proposalWalletId = await createProposalWallet(walletDetails.address, walletDetails.encryptedPrivateKey);
+    console.log(`Created proposal wallet with ID: ${proposalWalletId}`);
 
     // Add wallet details and defaults to the proposal
     const newProposal = await createProposal({
@@ -24,8 +24,8 @@ export const submitProposal = async (req: Request, res: Response, next: NextFunc
       approved: false,
       passed: false,
       votesActive: false,
-      openVote: new Date(),
-      closeVote: new Date(),
+      status: 1,
+      wallet: proposalWalletId, // Link the proposal to the wallet
     });
 
     console.log('Proposal created successfully:', newProposal); // Log success

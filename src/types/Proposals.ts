@@ -11,4 +11,6 @@ export interface Proposal {
   votesActive: boolean; // Whether votes are active
   openVote: Date; // Date when voting opens
   closeVote: Date; // Date when voting closes
+  wallet: number; // Foreign key referencing proposal_wallets.id
+  status: number; // Foreign key referencing proposal_statuses.id
 } 
