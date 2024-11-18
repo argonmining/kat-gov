@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const KASPA_API_BASE_URL = process.env.KASPA_API_BASE_URL || 'https://api.kaspa.org';
+const KSPR_MARKETPLACE_DATA_URL = process.env.KSPR_MARKETPLACE_DATA_URL || 'https://storage.googleapis.com/kspr-api-v1/marketplace/marketplace.json';
 
 const kaspaAPI = axios.create({
   baseURL: KASPA_API_BASE_URL,
@@ -97,6 +98,21 @@ export const getMarketCapAndPrice = async () => {
     return response.data;
   } catch (error) {
     console.error('Error fetching market cap and price:', error);
+    throw error;
+  }
+};
+
+// Function to get marketplace data from kasFYI API
+export const getKSPRMarketplaceData = async () => {
+  try {
+    const response = await fetch(KSPR_MARKETPLACE_DATA_URL);
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching marketplace data:', error);
     throw error;
   }
 };

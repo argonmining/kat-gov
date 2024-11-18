@@ -18,6 +18,7 @@ import proposalYesVotesRoutes from './routes/proposalYesVotesRoutes.js';
 import proposalNoVotesRoutes from './routes/proposalNoVotesRoutes.js';
 import proposalNominationsRoutes from './routes/proposalNominationsRoutes.js';
 import candidateNominationsRoutes from './routes/candidateNominationsRoutes.js';
+import nominationFeeRoutes from './routes/nominationFeeRoutes.js';
 import { handleError } from './utils/errorHandler.js';
 import pkg from 'websocket';
 
@@ -56,6 +57,7 @@ app.use('/api', proposalYesVotesRoutes);
 app.use('/api', proposalNoVotesRoutes);
 app.use('/api', proposalNominationsRoutes);
 app.use('/api', candidateNominationsRoutes);
+app.use('/api', nominationFeeRoutes);
 
 // Error handling middleware
 app.use(handleError);

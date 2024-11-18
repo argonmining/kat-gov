@@ -70,6 +70,23 @@ paths:
                   $ref: '#/components/schemas/Proposal'
 
   /proposals/{proposalId}:
+    get:
+      summary: Retrieve details for a specific proposal
+      parameters:
+        - name: proposalId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Proposal details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Proposal'
+        '404':
+          description: Proposal not found
     put:
       summary: Update a proposal
       parameters:
@@ -87,98 +104,50 @@ paths:
       responses:
         '200':
           description: Proposal updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Proposal'
         '400':
-          description: Invalid proposal ID
-        '404':
-          description: Proposal not found
-    delete:
-      summary: Delete a proposal
-      parameters:
-        - name: proposalId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '204':
-          description: Proposal deleted successfully
-        '400':
-          description: Invalid proposal ID
+          description: Invalid input
         '404':
           description: Proposal not found
 
-  /elections:
-    post:
-      summary: Create a new election
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Election'
-      responses:
-        '201':
-          description: Election created successfully
+  /proposal-nominations:
     get:
-      summary: Retrieve a list of elections
+      summary: Retrieve all proposal nominations
       responses:
         '200':
-          description: A list of elections
+          description: A list of proposal nominations
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Election'
-
-  /elections/{electionId}:
-    get:
-      summary: Retrieve details for a specific election
-      parameters:
-        - name: electionId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Election details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Election'
-        '404':
-          description: Election not found
-
-  /positions:
-    get:
-      summary: Retrieve a list of positions
-      responses:
-        '200':
-          description: A list of positions
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Position'
+                  $ref: '#/components/schemas/ProposalNomination'
     post:
-      summary: Create a new position
+      summary: Submit a new proposal nomination
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Position'
+              $ref: '#/components/schemas/ProposalNomination'
       responses:
         '201':
-          description: Position created successfully
+          description: Proposal nomination created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProposalNomination'
+        '400':
+          description: Invalid input
 
-  /positions/{positionId}:
+  /proposal-nominations/{id}:
     put:
-      summary: Update a position
+      summary: Modify a proposal nomination
       parameters:
-        - name: positionId
+        - name: id
           in: path
           required: true
           schema:
@@ -188,55 +157,67 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Position'
+              $ref: '#/components/schemas/ProposalNomination'
       responses:
         '200':
-          description: Position updated successfully
+          description: Proposal nomination updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProposalNomination'
+        '400':
+          description: Invalid input
         '404':
-          description: Position not found
+          description: Proposal nomination not found
     delete:
-      summary: Delete a position
+      summary: Remove a proposal nomination
       parameters:
-        - name: positionId
+        - name: id
           in: path
           required: true
           schema:
             type: integer
       responses:
         '204':
-          description: Position deleted successfully
+          description: Proposal nomination deleted successfully
         '404':
-          description: Position not found
+          description: Proposal nomination not found
 
-  /proposal-types:
+  /candidate-nominations:
     get:
-      summary: Retrieve a list of proposal types
+      summary: Retrieve all candidate nominations
       responses:
         '200':
-          description: A list of proposal types
+          description: A list of candidate nominations
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ProposalType'
+                  $ref: '#/components/schemas/CandidateNomination'
     post:
-      summary: Create a new proposal type
+      summary: Submit a new candidate nomination
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ProposalType'
+              $ref: '#/components/schemas/CandidateNomination'
       responses:
         '201':
-          description: Proposal type created successfully
+          description: Candidate nomination created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidateNomination'
+        '400':
+          description: Invalid input
 
-  /proposal-types/{proposalTypeId}:
+  /candidate-nominations/{id}:
     put:
-      summary: Update a proposal type
+      summary: Modify a candidate nomination
       parameters:
-        - name: proposalTypeId
+        - name: id
           in: path
           required: true
           schema:
@@ -246,83 +227,31 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ProposalType'
+              $ref: '#/components/schemas/CandidateNomination'
       responses:
         '200':
-          description: Proposal type updated successfully
+          description: Candidate nomination updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidateNomination'
+        '400':
+          description: Invalid input
         '404':
-          description: Proposal type not found
+          description: Candidate nomination not found
     delete:
-      summary: Delete a proposal type
+      summary: Remove a candidate nomination
       parameters:
-        - name: proposalTypeId
+        - name: id
           in: path
           required: true
           schema:
             type: integer
       responses:
         '204':
-          description: Proposal type deleted successfully
+          description: Candidate nomination deleted successfully
         '404':
-          description: Proposal type not found
-
-  /statuses:
-    get:
-      summary: Retrieve a list of statuses
-      responses:
-        '200':
-          description: A list of statuses
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Status'
-    post:
-      summary: Create a new status
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Status'
-      responses:
-        '201':
-          description: Status created successfully
-
-  /statuses/{statusId}:
-    put:
-      summary: Update a status
-      parameters:
-        - name: statusId
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Status'
-      responses:
-        '200':
-          description: Status updated successfully
-        '404':
-          description: Status not found
-    delete:
-      summary: Delete a status
-      parameters:
-        - name: statusId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '204':
-          description: Status deleted successfully
-        '404':
-          description: Status not found
+          description: Candidate nomination not found
 
 components:
   schemas:
@@ -366,6 +295,38 @@ components:
           type: boolean
         passed:
           type: boolean
+
+    ProposalNomination:
+      type: object
+      properties:
+        id:
+          type: integer
+        proposalId:
+          type: integer
+        hash:
+          type: string
+        toAddress:
+          type: string
+        amountSent:
+          type: number
+        validVote:
+          type: boolean
+        nominatedAt:
+          type: string
+          format: date-time
+
+    CandidateNomination:
+      type: object
+      properties:
+        id:
+          type: integer
+        candidateId:
+          type: integer
+        electionId:
+          type: integer
+        nominatedAt:
+          type: string
+          format: date-time
 
     Election:
       type: object
