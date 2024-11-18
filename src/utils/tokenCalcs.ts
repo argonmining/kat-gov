@@ -1,4 +1,4 @@
-import { getTokenPrice } from '../services/kasplexAPI';
+import { getTokenPrice } from '../services/kasplexAPI.js';
 import dotenv from 'dotenv';
 
 // Load environment variables from .env file

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
-import { getKSPRMarketplaceData } from './kaspaAPI';
+import { getKSPRMarketplaceData } from './kaspaAPI.js';
 
 // Load environment variables from .env file
 dotenv.config();
