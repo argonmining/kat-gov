@@ -10,24 +10,32 @@ dotenv.config();
  */
 export async function proposalSubmissionFee(): Promise<number> {
   try {
+    console.log('Calculating proposal submission fee...');
     const proposalSubmissionFeeUSD = parseFloat(process.env.PROPOSAL_SUBMISSION_FEE_USD || '0');
+    console.log(`Proposal Submission Fee (USD): ${proposalSubmissionFeeUSD}`);
     const govTokenTicker = process.env.GOV_TOKEN_TICKER || '';
+    console.log(`GOV Token Ticker: ${govTokenTicker}`);
 
     if (!govTokenTicker) {
       throw new Error('GOV_TOKEN_TICKER is not defined in the environment variables.');
     }
 
     const tokenPrice = await getTokenPrice(govTokenTicker);
+    console.log(`Token Price: ${tokenPrice}`);
 
     if (tokenPrice === 0) {
       throw new Error('Token price is zero, cannot calculate proposal submission fee.');
     }
 
-    // Generate a random multiplier between 0.95 and 1.10
-    const randomMultiplier = Math.random() * (1.10 - 0.95) + 0.95;
+    const baseFee = proposalSubmissionFeeUSD / tokenPrice;
+    console.log(`Base Fee: ${baseFee}`);
 
-    // Calculate the fee and truncate to a maximum of 8 decimals
-    const fee = (proposalSubmissionFeeUSD / tokenPrice) * randomMultiplier;
+    const randomMultiplier = Math.random() * (1.10 - 0.95) + 0.95;
+    console.log(`Random Multiplier: ${randomMultiplier}`);
+
+    const fee = Math.floor(baseFee) + (baseFee % 1) * randomMultiplier;
+    console.log(`Calculated Fee: ${fee}`);
+
     return Math.floor(fee * 1e8) / 1e8;
   } catch (error) {
     console.error('Error calculating proposal submission fee:', error);
@@ -41,24 +49,32 @@ export async function proposalSubmissionFee(): Promise<number> {
  */
 export async function proposalNominationFee(): Promise<number> {
   try {
+    console.log('Calculating proposal nomination fee...');
     const proposalNominationFeeUSD = parseFloat(process.env.PROPOSAL_NOMINATION_FEE_USD || '0');
+    console.log(`Proposal Nomination Fee (USD): ${proposalNominationFeeUSD}`);
     const govTokenTicker = process.env.GOV_TOKEN_TICKER || '';
+    console.log(`GOV Token Ticker: ${govTokenTicker}`);
 
     if (!govTokenTicker) {
       throw new Error('GOV_TOKEN_TICKER is not defined in the environment variables.');
     }
 
     const tokenPrice = await getTokenPrice(govTokenTicker);
+    console.log(`Token Price: ${tokenPrice}`);
 
     if (tokenPrice === 0) {
       throw new Error('Token price is zero, cannot calculate proposal nomination fee.');
     }
 
-    // Generate a random multiplier between 0.95 and 1.10
-    const randomMultiplier = Math.random() * (1.10 - 0.95) + 0.95;
+    const baseFee = proposalNominationFeeUSD / tokenPrice;
+    console.log(`Base Fee: ${baseFee}`);
 
-    // Calculate the fee and truncate to a maximum of 8 decimals
-    const fee = (proposalNominationFeeUSD / tokenPrice) * randomMultiplier;
+    const randomMultiplier = Math.random() * (1.10 - 0.95) + 0.95;
+    console.log(`Random Multiplier: ${randomMultiplier}`);
+
+    const fee = Math.floor(baseFee) + (baseFee % 1) * randomMultiplier;
+    console.log(`Calculated Fee: ${fee}`);
+
     return Math.floor(fee * 1e8) / 1e8;
   } catch (error) {
     console.error('Error calculating proposal nomination fee:', error);

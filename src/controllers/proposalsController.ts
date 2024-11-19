@@ -108,4 +108,4 @@ export const fetchProposalById = async (req: Request, res: Response, next: NextF
   } catch (error) {
     next(error);
   }
-}; 
+};

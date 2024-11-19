@@ -74,15 +74,23 @@ export async function getKRC20Info(tick: string): Promise<any> {
  */
 export async function getTokenPrice(ticker: string): Promise<number> {
   try {
+    console.log(`Fetching marketplace data for token: ${ticker}`);
     const marketplaceData = await getKSPRMarketplaceData();
+    console.log('Marketplace data retrieved:', marketplaceData);
+
     const kasFloorPrice = marketplaceData['KAS']?.floor_price;
     const tickerFloorPrice = marketplaceData[ticker]?.floor_price;
+
+    console.log(`KAS floor price: ${kasFloorPrice}, ${ticker} floor price: ${tickerFloorPrice}`);
 
     if (kasFloorPrice === undefined || tickerFloorPrice === undefined) {
       throw new Error(`Floor price not found for KAS or ${ticker}`);
     }
 
-    return kasFloorPrice * tickerFloorPrice;
+    const tokenPrice = kasFloorPrice * tickerFloorPrice;
+    console.log(`Calculated token price for ${ticker}: ${tokenPrice}`);
+
+    return tokenPrice;
   } catch (error) {
     console.error('Error calculating token price:', error);
     throw error;

@@ -1,7 +1,8 @@
 import dotenv from 'dotenv';
 import app from './app.js';
 
-dotenv.config();
+const envFile = process.env.NODE_ENV === 'katgov' ? '.env.katgov' : '.env.kdao';
+dotenv.config({ path: envFile });
 
 const PORT = process.env.PORT || 7215;
 
