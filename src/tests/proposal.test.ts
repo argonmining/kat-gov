@@ -9,7 +9,7 @@ describe('Proposals API', () => {
       .post('/api/proposals')
       .send({
         title: 'Test Proposal',
-        subtitle: 'Test Subtitle',
+        description: 'Test Subtitle',
         body: 'Test Body',
         type: 1,
         approved: false,
@@ -32,7 +32,7 @@ describe('Proposals API', () => {
       .put(`/api/proposals/${proposalId}`)
       .send({
         title: 'Updated Test Proposal',
-        subtitle: 'Updated Test Subtitle',
+        description: 'Updated Test Subtitle',
         body: 'Updated Test Body',
         type: 1,
         approved: true,

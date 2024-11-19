@@ -5,7 +5,8 @@ import { getProposalById } from '../models/Proposals.js';
 import { createProposalNomination } from '../models/ProposalNominations.js';
 import dotenv from 'dotenv';
 
-dotenv.config();
+const envFile = process.env.NODE_ENV === 'katgov' ? '.env.katgov' : '.env.kdao';
+dotenv.config({ path: envFile });
 
 const GOV_TOKEN_TICKER = process.env.GOV_TOKEN_TICKER || '';
 

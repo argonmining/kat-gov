@@ -1,8 +1,10 @@
 // src/services/chaingeFinanceAPI.ts
 import axios from 'axios';
 import dotenv from 'dotenv';
+import process from 'process';
 
-dotenv.config();
+const envFile = process.env.NODE_ENV === 'katgov' ? '.env.katgov' : '.env.kdao';
+dotenv.config({ path: envFile });
 
 const CHAINGE_FINANCE_API_URL = 'https://api.chainge.finance';
 

@@ -1,8 +1,10 @@
 import { Mnemonic, XPrv } from '../wasm/kaspa/kaspa.js';
 import { encryptPrivateKey } from './encryptionUtils.js';
 import dotenv from 'dotenv';
+import process from 'process';
 
-dotenv.config();
+const envFile = process.env.NODE_ENV === 'katgov' ? '.env.katgov' : '.env.kdao';
+dotenv.config({ path: envFile });
 
 interface WalletDetails {
   mnemonic: string;

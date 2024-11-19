@@ -1,8 +1,9 @@
 import { getTokenPrice } from '../services/kasplexAPI.js';
 import dotenv from 'dotenv';
-
+import process from 'process';
 // Load environment variables from .env file
-dotenv.config();
+const envFile = process.env.NODE_ENV === 'katgov' ? '.env.katgov' : '.env.kdao';
+dotenv.config({ path: envFile });
 
 /**
  * Calculate the quantity of tokens needed for proposal submission.

@@ -1,8 +1,10 @@
 import pkg from 'pg';
 const { Pool } = pkg;
 import dotenv from 'dotenv';
+import process from 'process';
 
-dotenv.config();
+const envFile = process.env.NODE_ENV === 'katgov' ? '.env.katgov' : '.env.kdao';
+dotenv.config({ path: envFile });
 
 const pool = new Pool({
   user: process.env.DB_USER,
@@ -20,5 +22,10 @@ pool.on('error', (err) => {
   console.error('Database connection error:', err);
   process.exit(-1);
 });
+
+console.log('DB_USER:', process.env.DB_USER);
+console.log('DB_HOST:', process.env.DB_HOST);
+console.log('DB_NAME:', process.env.DB_NAME);
+console.log('DB_PORT:', process.env.DB_PORT);
 
 export default pool;

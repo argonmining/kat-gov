@@ -1,9 +1,11 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
+import process from 'process';
 import { getKSPRMarketplaceData } from './kaspaAPI.js';
 
 // Load environment variables from .env file
-dotenv.config();
+const envFile = process.env.NODE_ENV === 'katgov' ? '.env.katgov' : '.env.kdao';
+dotenv.config({ path: envFile });
 
 const BASE_URL = process.env.KASPLEX_API_BASE_URL;
 

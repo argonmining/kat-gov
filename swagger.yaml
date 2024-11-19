@@ -262,7 +262,7 @@ components:
           type: integer
         title:
           type: string
-        subtitle:
+        description:
           type: string
         body:
           type: string
