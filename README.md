@@ -1,5 +1,11 @@
 # Kat-Gov
 
+## Project Status
+
+**This project is under active development, and changes are made often.** Currently, Kat Gov is operating in a closed beta with dedicated customers. This repository contains the backend for the Kat Gov system. The frontend can be found [here](https://github.com/argonmining/kat-gov-web).
+
+While the project is in closed beta, everything Nacho the Kat does is open source and built in public, so all development is committed here publicly and immediately. We welcome all contributors and would love to help you set up governance for your project. More information about Kat Gov can be found at [KatGov.xyz](https://KatGov.xyz).
+
 ## Prerequisites
 
 Before setting up the application, ensure you have the following installed on your Ubuntu VPS:
