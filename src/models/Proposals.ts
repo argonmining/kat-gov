@@ -97,9 +97,9 @@ export const deleteProposal = async (id: number): Promise<void> => {
 export const getProposalById = async (id: number): Promise<any> => {
   try {
     const query = `
-      SELECT p.*, cw.address AS wallet_address
+      SELECT p.*, pw.address AS wallet_address
       FROM proposals p
-      LEFT JOIN candidate_wallets cw ON p.wallet = cw.id
+      LEFT JOIN proposal_wallets pw ON p.wallet = pw.id
       WHERE p.id = $1;
     `;
     const result = await pool.query(query, [id]);
