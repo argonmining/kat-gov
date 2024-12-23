@@ -1,6 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
-import { getAllProposalSnapshots, createProposalSnapshot, updateProposalSnapshot, deleteProposalSnapshot } from '../models/ProposalSnapshots.js';
-import { getAllElectionSnapshots, createElectionSnapshot, updateElectionSnapshot, deleteElectionSnapshot } from '../models/ElectionSnapshots.js';
+import {
+  getAllProposalSnapshots,
+  createProposalSnapshot,
+  updateProposalSnapshot,
+  deleteProposalSnapshot
+} from '../models/proposalModels.js';
+import {
+  getAllElectionSnapshots,
+  createElectionSnapshot,
+  updateElectionSnapshot,
+  deleteElectionSnapshot
+} from '../models/electionModels.js';
 
 export const fetchAllProposalSnapshots = async (req: Request, res: Response, next: NextFunction) => {
   try {
