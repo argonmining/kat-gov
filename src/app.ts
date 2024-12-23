@@ -21,6 +21,7 @@ import candidateNominationsRoutes from './routes/candidateNominationsRoutes.js';
 import nominationFeeRoutes from './routes/nominationFeeRoutes.js';
 import { handleError } from './utils/errorHandler.js';
 import pkg from 'websocket';
+import './scheduler/deleteOldDraftProposals.js';
 
 const { w3cwebsocket: W3CWebSocket } = pkg;
 

@@ -109,3 +109,25 @@ export const getProposalById = async (id: number): Promise<any> => {
     throw new Error('Could not fetch proposal by ID');
   }
 };
+
+export const deleteOldDraftProposals = async (): Promise<void> => {
+  try {
+    const query = `
+      DELETE FROM proposals
+      WHERE (
+        title = 'A draft proposal, please replace with the title of your proposal.'
+        OR description = 'Please replace this text with a short description of your proposal.'
+        OR title ILIKE 'test'
+        OR title ILIKE 'ashton test'
+        OR description ILIKE 'test'
+        OR description ILIKE 'ashton test'
+      )
+      AND submitted < NOW() - INTERVAL '8 hours';
+    `;
+    await pool.query(query);
+    console.log('Old draft proposals deleted successfully.');
+  } catch (error) {
+    console.error('Error deleting old draft proposals:', error);
+    throw new Error('Could not delete old draft proposals');
+  }
+};
