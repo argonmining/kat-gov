@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { createModuleLogger } from '../utils/logger.js';
+import { Decimal } from '@prisma/client/runtime/library';
 import {
   createProposal,
   getAllProposals,
@@ -41,7 +42,8 @@ import {
   ProposalNoVote,
   ProposalNomination,
   ProposalType,
-  ProposalStatus
+  ProposalStatus,
+  ProposalSnapshot
 } from '../types/proposalTypes.js';
 import { proposalSubmissionFee } from '../utils/tokenCalcs.js';
 import { createKaspaWallet } from '../utils/walletUtils.js';
@@ -51,51 +53,49 @@ const logger = createModuleLogger('proposalController');
 // Proposals
 export const submitProposal = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const proposal: Omit<Proposal, 'id'> = req.body;
-    logger.info({ proposal }, 'Submitting new proposal');
-
-    // Generate a new wallet
-    const walletDetails = await createKaspaWallet();
-    logger.debug({ address: walletDetails.address }, 'Wallet created for proposal');
-
-    // Create a new proposal wallet entry
-    const proposalWalletId = await createProposalWallet(walletDetails.address, walletDetails.encryptedPrivateKey);
-    logger.debug({ proposalWalletId }, 'Proposal wallet entry created');
-
-    // Add wallet details and defaults to the proposal
+    const proposalData = req.body;
+    logger.info({ proposalData }, 'Submitting proposal');
+    
     const newProposal = await createProposal({
-      ...proposal,
-      title: proposal.title,
-      description: proposal.description,
+      title: proposalData.title,
+      description: proposalData.description,
       submitted: new Date(),
       reviewed: false,
       approved: false,
       passed: false,
       votesActive: false,
-      status: 1,
-      wallet: proposalWalletId.id,
+      status: 1, // Default status
+      wallet: proposalData.wallet
     });
 
-    logger.info({ 
-      proposalId: newProposal.id,
-      walletAddress: walletDetails.address 
-    }, 'Proposal created successfully');
-
-    res.status(201).json({
-      proposalId: newProposal.id,
-      walletAddress: walletDetails.address,
-    });
+    logger.info({ proposalId: newProposal.id }, 'Proposal submitted successfully');
+    res.status(201).json(newProposal);
   } catch (error) {
-    logger.error({ error }, 'Error submitting proposal');
+    logger.error({ error, proposal: req.body }, 'Error submitting proposal');
     next(error);
   }
 };
 
 export const fetchAllProposals = async (req: Request, res: Response): Promise<void> => {
   try {
+    const statusName = req.query.status as string;
+    let statusId: number | undefined = undefined;
+
+    if (statusName) {
+      logger.info({ statusName }, 'Looking up status ID for status name');
+      const statuses = await getAllProposalStatuses();
+      const status = statuses.find(s => s.name.toLowerCase() === statusName.toLowerCase());
+      if (status) {
+        statusId = status.id;
+        logger.debug({ statusName, statusId }, 'Found status ID for status name');
+      } else {
+        logger.warn({ statusName }, 'Status name not found');
+      }
+    }
+
     const filters = {
       title: req.query.title as string | undefined,
-      status: req.query.status ? parseInt(req.query.status as string, 10) : undefined
+      status: statusId
     };
     const sort = req.query.sort as string;
     const limit = parseInt(req.query.limit as string, 10) || 100;
@@ -184,17 +184,26 @@ export const fetchProposalById = async (req: Request, res: Response, next: NextF
 };
 
 // Proposal Votes
-export const submitProposalVote = async (req: Request, res: Response): Promise<void> => {
+export const submitProposalVote = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const vote: Omit<ProposalVote, 'id'> = req.body;
-    logger.info({ vote }, 'Submitting proposal vote');
+    const { proposal_id, toaddress, amountsent, isYesVote } = req.body;
+    logger.info({ proposal_id, toaddress, amountsent, isYesVote }, 'Submitting proposal vote');
     
-    const newVote = await createProposalVote(vote);
-    logger.info({ voteId: newVote.id }, 'Proposal vote submitted successfully');
+    const newVote = await createProposalVote({
+      proposal_id,
+      toaddress,
+      amountsent: new Decimal(amountsent.toString()),
+      votescounted: null,
+      validvote: true,
+      proposal_snapshot_id: null,
+      isYesVote
+    });
+
+    logger.info({ voteId: newVote.id }, 'Vote submitted successfully');
     res.status(201).json(newVote);
   } catch (error) {
-    logger.error({ error, vote: req.body }, 'Error submitting proposal vote');
-    res.status(500).json({ error: 'Failed to submit proposal vote' });
+    logger.error({ error, vote: req.body }, 'Error submitting vote');
+    next(error);
   }
 };
 
@@ -232,10 +241,18 @@ export const fetchAllProposalYesVotes = async (req: Request, res: Response, next
 
 export const submitProposalYesVote = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const vote: Omit<ProposalYesVote, 'id' | 'created'> = req.body;
-    logger.info({ vote }, 'Submitting proposal yes vote');
+    const { proposal_id, toaddress, amountsent } = req.body;
+    logger.info({ proposal_id, toaddress, amountsent }, 'Submitting proposal yes vote');
     
-    const newVote = await createProposalYesVote(vote);
+    const newVote = await createProposalYesVote({
+      proposal_id,
+      toaddress,
+      amountsent: new Decimal(amountsent.toString()),
+      votescounted: null,
+      validvote: true,
+      proposal_snapshot_id: null
+    });
+
     logger.info({ voteId: newVote.id }, 'Yes vote submitted successfully');
     res.status(201).json(newVote);
   } catch (error) {
@@ -299,10 +316,18 @@ export const fetchAllProposalNoVotes = async (req: Request, res: Response, next:
 
 export const submitProposalNoVote = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const vote: Omit<ProposalNoVote, 'id' | 'created'> = req.body;
-    logger.info({ vote }, 'Submitting proposal no vote');
+    const { proposal_id, toaddress, amountsent } = req.body;
+    logger.info({ proposal_id, toaddress, amountsent }, 'Submitting proposal no vote');
     
-    const newVote = await createProposalNoVote(vote);
+    const newVote = await createProposalNoVote({
+      proposal_id,
+      toaddress,
+      amountsent: new Decimal(amountsent.toString()),
+      votescounted: null,
+      validvote: true,
+      proposal_snapshot_id: null
+    });
+
     logger.info({ voteId: newVote.id }, 'No vote submitted successfully');
     res.status(201).json(newVote);
   } catch (error) {
@@ -605,16 +630,16 @@ export const fetchAllProposalSnapshots = async (req: Request, res: Response, nex
   }
 };
 
-export const addProposalSnapshot = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const submitProposalSnapshot = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { proposalId, data } = req.body;
-    logger.info({ proposalId }, 'Adding proposal snapshot');
+    const { proposal_id, data } = req.body;
+    logger.info({ proposal_id }, 'Creating proposal snapshot');
     
-    const newSnapshot = await createProposalSnapshot(proposalId, data);
-    logger.info({ snapshotId: newSnapshot.id, proposalId }, 'Snapshot created successfully');
+    const newSnapshot = await createProposalSnapshot(proposal_id, data as Record<string, any>);
+    logger.info({ snapshotId: newSnapshot.id }, 'Snapshot created successfully');
     res.status(201).json(newSnapshot);
   } catch (error) {
-    logger.error({ error, proposalId: req.body.proposalId }, 'Error adding proposal snapshot');
+    logger.error({ error, snapshot: req.body }, 'Error creating snapshot');
     next(error);
   }
 };

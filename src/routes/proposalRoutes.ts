@@ -37,7 +37,7 @@ import {
   removeProposalStatus,
   // Proposal Snapshots
   fetchAllProposalSnapshots,
-  addProposalSnapshot,
+  submitProposalSnapshot,
   modifyProposalSnapshot,
   removeProposalSnapshot
 } from '../controllers/proposalController.js';
@@ -56,18 +56,31 @@ const logRoute = (req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
+// Error handling middleware
+const errorHandler = (err: Error, req: Request, res: Response, next: NextFunction) => {
+  logger.error({ error: err }, 'Route error occurred');
+  res.status(500).json({ error: 'Internal server error' });
+};
+
 router.use(logRoute);
 
-// Proposals
-router.post('/', submitProposal);
-router.get('/', fetchAllProposals);
-router.get('/:id', fetchProposalById);
-router.put('/:proposalId', modifyProposal);
-router.delete('/:proposalId', removeProposal);
+// Proposal Statuses
+router.get('/statuses', fetchAllProposalStatuses);
+router.post('/statuses', addProposalStatus);
+router.put('/statuses/:id', modifyProposalStatus);
+router.delete('/statuses/:id', removeProposalStatus);
 
-// Proposal Votes
-router.post('/votes', submitProposalVote);
-router.get('/:proposalId/votes', fetchVotesForProposal);
+// Proposal Types
+router.get('/types', fetchAllProposalTypes);
+router.post('/types', addProposalType);
+router.put('/types/:id', modifyProposalType);
+router.delete('/types/:id', removeProposalType);
+
+// Proposal Snapshots
+router.get('/snapshots', fetchAllProposalSnapshots);
+router.post('/snapshots', submitProposalSnapshot);
+router.put('/snapshots/:id', modifyProposalSnapshot);
+router.delete('/snapshots/:id', removeProposalSnapshot);
 
 // Proposal Yes Votes
 router.get('/yes-votes', fetchAllProposalYesVotes);
@@ -87,22 +100,17 @@ router.post('/nominations', submitProposalNomination);
 router.put('/nominations/:id', modifyProposalNomination);
 router.delete('/nominations/:id', removeProposalNomination);
 
-// Proposal Types
-router.get('/types', fetchAllProposalTypes);
-router.post('/types', addProposalType);
-router.put('/types/:id', modifyProposalType);
-router.delete('/types/:id', removeProposalType);
+// Proposal Votes
+router.post('/votes', submitProposalVote);
 
-// Proposal Statuses
-router.get('/statuses', fetchAllProposalStatuses);
-router.post('/statuses', addProposalStatus);
-router.put('/statuses/:id', modifyProposalStatus);
-router.delete('/statuses/:id', removeProposalStatus);
+// Proposals
+router.post('/', submitProposal);
+router.get('/', fetchAllProposals);
+router.get('/:id', fetchProposalById);
+router.get('/:id/votes', fetchVotesForProposal);
+router.put('/:id', modifyProposal);
+router.delete('/:id', removeProposal);
 
-// Proposal Snapshots
-router.get('/snapshots', fetchAllProposalSnapshots);
-router.post('/snapshots', addProposalSnapshot);
-router.put('/snapshots/:id', modifyProposalSnapshot);
-router.delete('/snapshots/:id', removeProposalSnapshot);
+router.use(errorHandler);
 
 export default router; 

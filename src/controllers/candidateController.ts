@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { createModuleLogger } from '../utils/logger.js';
+import { Decimal } from '@prisma/client/runtime/library';
 import {
   createCandidateVote,
   getVotesForCandidate,
@@ -12,25 +13,39 @@ import {
   updateCandidateNomination,
   deleteCandidateNomination
 } from '../models/candidateModels.js';
-import {
-  CandidateVote,
-  CandidateNomination
-} from '../types/candidateTypes.js';
+import { CandidateVote } from '../types/electionTypes.js';
+import { CandidateNomination, CandidateWallet } from '../types/candidateTypes.js';
 
 const logger = createModuleLogger('candidateController');
 
 // Candidate Votes
-export const submitCandidateVote = async (req: Request, res: Response): Promise<void> => {
+export const submitCandidateVote = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const vote: Omit<CandidateVote, 'id'> = req.body;
-    logger.info({ vote }, 'Submitting candidate vote');
+    const { candidate_id, toaddress, amountsent, hash } = req.body;
+    if (!candidate_id || !toaddress || !amountsent) {
+      logger.warn({ body: req.body }, 'Missing required fields for candidate vote');
+      res.status(400).json({ error: 'Missing required fields' });
+      return;
+    }
+
+    logger.info({ candidate_id, toaddress, amountsent }, 'Submitting candidate vote');
     
-    const newVote = await createCandidateVote(vote);
+    const newVote = await createCandidateVote({
+      candidate_id,
+      toaddress,
+      amountsent: new Decimal(amountsent.toString()),
+      hash,
+      created: new Date(),
+      votescounted: null,
+      validvote: true,
+      election_snapshot_id: null
+    });
+
     logger.info({ voteId: newVote.id }, 'Candidate vote submitted successfully');
     res.status(201).json(newVote);
   } catch (error) {
     logger.error({ error, vote: req.body }, 'Error submitting candidate vote');
-    res.status(500).json({ error: 'Failed to submit candidate vote' });
+    next(error);
   }
 };
 

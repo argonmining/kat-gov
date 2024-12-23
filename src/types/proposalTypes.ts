@@ -1,53 +1,55 @@
+import { Decimal } from '@prisma/client/runtime/library';
+
 export interface Proposal {
   id: number;
   title: string;
   description: string;
+  submitted: Date;
   reviewed: boolean;
   approved: boolean;
   passed: boolean;
-  votesActive: boolean;
+  votesactive: boolean;
   status: number;
   wallet: number;
-  submitted: Date;
 }
 
 export interface ProposalVote {
   id: number;
-  proposalId: number;
-  walletAddress: string;
-  voteAmount: number;
+  proposal_id: number;
+  toaddress: string;
+  amountsent: Decimal;
   created: Date;
+  votescounted: number | null;
+  validvote: boolean;
+  proposal_snapshot_id: number | null;
 }
 
-export interface ProposalYesVote {
-  id: number;
-  proposalId: number;
-  walletAddress: string;
-  voteAmount: number;
-  created: Date;
+export interface ProposalYesVote extends ProposalVote {
+  // Additional fields specific to yes votes if needed
 }
 
-export interface ProposalNoVote {
-  id: number;
-  proposalId: number;
-  walletAddress: string;
-  voteAmount: number;
-  created: Date;
+export interface ProposalNoVote extends ProposalVote {
+  // Additional fields specific to no votes if needed
 }
 
 export interface ProposalNomination {
   id: number;
-  proposalId: number;
-  walletAddress: string;
-  nominationAmount: number;
+  proposal_id: number;
+  toaddress: string;
+  amountsent: Decimal;
+  hash: string | null;
   created: Date;
+  validvote: boolean;
 }
 
-export interface ProposalSnapshot {
+export interface ProposalWallet {
   id: number;
-  proposalId: number;
-  data: Record<string, any>;
+  address: string;
+  encryptedprivatekey: string;
+  balance: Decimal;
   created: Date;
+  active: boolean;
+  proposal_id: number | null;
 }
 
 export interface ProposalType {
@@ -62,8 +64,9 @@ export interface ProposalStatus {
   active: boolean;
 }
 
-export interface ProposalWallet {
+export interface ProposalSnapshot {
   id: number;
-  address: string;
-  encryptedPrivateKey: string;
+  proposal_id: number;
+  data: Record<string, any>;
+  created: Date;
 } 

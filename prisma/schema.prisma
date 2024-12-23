@@ -1,0 +1,294 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model candidate_nominations {
+  id                                                                          Int                   @id @default(autoincrement())
+  created                                                                     DateTime?             @db.Timestamptz(6)
+  hash                                                                        String?               @unique @db.VarChar(255)
+  toaddress                                                                   String?               @db.VarChar(255)
+  amountsent                                                                  Decimal?              @db.Decimal
+  validvote                                                                   Boolean?
+  candidate_id                                                                Int?
+  election_candidates_candidate_nominations_candidate_idToelection_candidates election_candidates?  @relation("candidate_nominations_candidate_idToelection_candidates", fields: [candidate_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_candidates_election_candidates_nominationsTocandidate_nominations  election_candidates[] @relation("election_candidates_nominationsTocandidate_nominations")
+}
+
+model candidate_statuses {
+  id                                                                 Int                   @id @default(autoincrement())
+  name                                                               String?               @unique @db.VarChar(255)
+  active                                                             Boolean?
+  election_candidates_election_candidates_statusTocandidate_statuses election_candidates[] @relation("election_candidates_statusTocandidate_statuses")
+  election_candidates_election_candidates_typeTocandidate_statuses   election_candidates[] @relation("election_candidates_typeTocandidate_statuses")
+}
+
+model candidate_votes {
+  id                   Int                  @id @default(autoincrement())
+  created              DateTime?            @db.Timestamptz(6)
+  hash                 String?              @unique @db.VarChar(255)
+  toaddress            String?              @db.VarChar(255)
+  amountsent           Decimal?             @db.Decimal
+  votescounted         Int?
+  validvote            Boolean?
+  candidate_id         Int?
+  election_snapshot_id Int?
+  election_candidates  election_candidates? @relation(fields: [candidate_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_snapshots   election_snapshots?  @relation(fields: [election_snapshot_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([candidate_id], map: "idx_candidate_votes_candidate_id")
+}
+
+model candidate_wallets {
+  id                                                                      Int                   @id @default(autoincrement())
+  address                                                                 String?               @unique @db.VarChar(255)
+  encryptedprivatekey                                                     String?               @unique @db.VarChar(255)
+  balance                                                                 Decimal?              @db.Decimal
+  created                                                                 DateTime?             @db.Timestamptz(6)
+  active                                                                  Boolean?              @default(true)
+  candidate_id                                                            Int?
+  election_candidates_candidate_wallets_candidate_idToelection_candidates election_candidates?  @relation("candidate_wallets_candidate_idToelection_candidates", fields: [candidate_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_candidates_election_candidates_walletTocandidate_wallets       election_candidates[] @relation("election_candidates_walletTocandidate_wallets")
+}
+
+model election_candidates {
+  id                                                                            Int                     @id @default(autoincrement())
+  name                                                                          String?                 @db.VarChar(255)
+  twitter                                                                       String?                 @db.VarChar(255)
+  discord                                                                       String?                 @db.VarChar(255)
+  telegram                                                                      String?                 @db.VarChar(255)
+  created                                                                       DateTime?               @db.Timestamptz(6)
+  data                                                                          Bytes?
+  type                                                                          Int?
+  status                                                                        Int?
+  wallet                                                                        Int?
+  nominations                                                                   Int?
+  candidate_nominations_candidate_nominations_candidate_idToelection_candidates candidate_nominations[] @relation("candidate_nominations_candidate_idToelection_candidates")
+  candidate_votes                                                               candidate_votes[]
+  candidate_wallets_candidate_wallets_candidate_idToelection_candidates         candidate_wallets[]     @relation("candidate_wallets_candidate_idToelection_candidates")
+  candidate_nominations_election_candidates_nominationsTocandidate_nominations  candidate_nominations?  @relation("election_candidates_nominationsTocandidate_nominations", fields: [nominations], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  candidate_statuses_election_candidates_statusTocandidate_statuses             candidate_statuses?     @relation("election_candidates_statusTocandidate_statuses", fields: [status], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  candidate_statuses_election_candidates_typeTocandidate_statuses               candidate_statuses?     @relation("election_candidates_typeTocandidate_statuses", fields: [type], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  candidate_wallets_election_candidates_walletTocandidate_wallets               candidate_wallets?      @relation("election_candidates_walletTocandidate_wallets", fields: [wallet], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_primaries                                                            election_primaries[]
+  elections_elections_firstcandidateToelection_candidates                       elections[]             @relation("elections_firstcandidateToelection_candidates")
+  elections_elections_secondcandidateToelection_candidates                      elections[]             @relation("elections_secondcandidateToelection_candidates")
+
+  @@index([wallet], map: "idx_election_candidates_wallet")
+}
+
+model election_positions {
+  id                 Int                  @id @default(autoincrement())
+  title              String?              @db.VarChar(255)
+  description        String?
+  created            DateTime?            @db.Timestamptz(6)
+  election_primaries election_primaries[]
+  elections          elections[]
+}
+
+model election_primaries {
+  id                  Int                  @id @default(autoincrement())
+  title               String?              @db.VarChar(255)
+  description         String?
+  reviewed            Boolean?             @default(false)
+  approved            Boolean?             @default(false)
+  votesactive         Boolean?             @default(false)
+  openvote            DateTime?            @db.Timestamptz(6)
+  closevote           DateTime?            @db.Timestamptz(6)
+  created             DateTime?            @db.Timestamptz(6)
+  type                Int?
+  position            Int?
+  candidates          Int?
+  status              Int?
+  snapshot            Int?
+  election_candidates election_candidates? @relation(fields: [candidates], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_positions  election_positions?  @relation(fields: [position], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_snapshots  election_snapshots?  @relation(fields: [snapshot], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_statuses   election_statuses?   @relation(fields: [status], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_types      election_types?      @relation(fields: [type], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model election_snapshots {
+  id                 Int                  @id @default(autoincrement())
+  generated          DateTime?            @db.Timestamptz(6)
+  data               Json?
+  proposal_id        Int?
+  candidate_votes    candidate_votes[]
+  election_primaries election_primaries[]
+  proposals          proposals?           @relation(fields: [proposal_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  elections          elections[]
+}
+
+model election_statuses {
+  id                 Int                  @id @default(autoincrement())
+  name               String?              @unique @db.VarChar(255)
+  active             Boolean?
+  election_primaries election_primaries[]
+  elections          elections[]
+}
+
+model election_types {
+  id                 Int                  @id @default(autoincrement())
+  name               String?              @unique @db.VarChar(255)
+  active             Boolean?
+  election_primaries election_primaries[]
+  elections          elections[]
+}
+
+model elections {
+  id                                                                 Int                  @id @default(autoincrement())
+  title                                                              String?              @db.VarChar(255)
+  description                                                        String?
+  reviewed                                                           Boolean?             @default(false)
+  approved                                                           Boolean?             @default(false)
+  votesactive                                                        Boolean?             @default(false)
+  openvote                                                           DateTime?            @db.Timestamptz(6)
+  closevote                                                          DateTime?            @db.Timestamptz(6)
+  created                                                            DateTime?            @db.Timestamptz(6)
+  type                                                               Int?
+  position                                                           Int?
+  firstcandidate                                                     Int?
+  secondcandidate                                                    Int?
+  status                                                             Int?
+  snapshot                                                           Int?
+  election_candidates_elections_firstcandidateToelection_candidates  election_candidates? @relation("elections_firstcandidateToelection_candidates", fields: [firstcandidate], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_positions                                                 election_positions?  @relation(fields: [position], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_candidates_elections_secondcandidateToelection_candidates election_candidates? @relation("elections_secondcandidateToelection_candidates", fields: [secondcandidate], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_snapshots                                                 election_snapshots?  @relation(fields: [snapshot], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_statuses                                                  election_statuses?   @relation(fields: [status], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_types                                                     election_types?      @relation(fields: [type], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_votes                                                     election_votes[]
+}
+
+model proposal_no_votes {
+  id                                                 Int                 @id @default(autoincrement())
+  created                                            DateTime?           @db.Timestamptz(6)
+  hash                                               String?             @unique @db.VarChar(255)
+  toaddress                                          String?             @db.VarChar(255)
+  amountsent                                         Decimal?            @db.Decimal
+  votescounted                                       Int?
+  validvote                                          Boolean?
+  proposal_id                                        Int?
+  proposal_snapshot_id                               Int?
+  proposals_proposal_no_votes_proposal_idToproposals proposals?          @relation("proposal_no_votes_proposal_idToproposals", fields: [proposal_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proposal_snapshots                                 proposal_snapshots? @relation(fields: [proposal_snapshot_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proposals_proposals_no_votesToproposal_no_votes    proposals[]         @relation("proposals_no_votesToproposal_no_votes")
+}
+
+model proposal_nominations {
+  id          Int        @id @default(autoincrement())
+  created     DateTime?  @db.Timestamptz(6)
+  hash        String?    @unique @db.VarChar(255)
+  toaddress   String?    @db.VarChar(255)
+  amountsent  Decimal?   @db.Decimal
+  validvote   Boolean?
+  proposal_id Int?
+  proposals   proposals? @relation(fields: [proposal_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model proposal_snapshots {
+  id                                                  Int                  @id @default(autoincrement())
+  generated                                           DateTime?            @db.Timestamptz(6)
+  data                                                Json?
+  proposal_id                                         Int?
+  proposal_no_votes                                   proposal_no_votes[]
+  proposals_proposal_snapshots_proposal_idToproposals proposals?           @relation("proposal_snapshots_proposal_idToproposals", fields: [proposal_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proposal_yes_votes                                  proposal_yes_votes[]
+  proposals_proposals_snapshotToproposal_snapshots    proposals[]          @relation("proposals_snapshotToproposal_snapshots")
+}
+
+model proposal_statuses {
+  id        Int         @id @default(autoincrement())
+  name      String?     @unique @db.VarChar(255)
+  active    Boolean?
+  proposals proposals[]
+}
+
+model proposal_types {
+  id         Int         @id @default(autoincrement())
+  name       String?     @unique @db.VarChar(255)
+  simplevote Boolean?    @default(true)
+  proposals  proposals[]
+}
+
+model proposal_wallets {
+  id                                                Int         @id @default(autoincrement())
+  address                                           String?     @unique @db.VarChar(255)
+  encryptedprivatekey                               String?     @unique @db.VarChar(255)
+  balance                                           Decimal?    @db.Decimal
+  timestamp                                         DateTime?   @db.Timestamptz(6)
+  active                                            Boolean?    @default(true)
+  proposal_id                                       Int?
+  proposals_proposal_wallets_proposal_idToproposals proposals?  @relation("proposal_wallets_proposal_idToproposals", fields: [proposal_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proposals_proposals_walletToproposal_wallets      proposals[] @relation("proposals_walletToproposal_wallets")
+}
+
+model proposal_yes_votes {
+  id                                                  Int                 @id @default(autoincrement())
+  created                                             DateTime?           @db.Timestamptz(6)
+  hash                                                String?             @unique @db.VarChar(255)
+  toaddress                                           String?             @db.VarChar(255)
+  amountsent                                          Decimal?            @db.Decimal
+  votescounted                                        Int?
+  validvote                                           Boolean?
+  proposal_id                                         Int?
+  proposal_snapshot_id                                Int?
+  proposals_proposal_yes_votes_proposal_idToproposals proposals?          @relation("proposal_yes_votes_proposal_idToproposals", fields: [proposal_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proposal_snapshots                                  proposal_snapshots? @relation(fields: [proposal_snapshot_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proposals_proposals_yes_votesToproposal_yes_votes   proposals[]         @relation("proposals_yes_votesToproposal_yes_votes")
+}
+
+model proposals {
+  id                                                           Int                    @id @default(autoincrement())
+  title                                                        String?                @db.VarChar(255)
+  description                                                  String?
+  body                                                         String?
+  reviewed                                                     Boolean?               @default(false)
+  approved                                                     Boolean?               @default(false)
+  passed                                                       Boolean?               @default(false)
+  votesactive                                                  Boolean?               @default(false)
+  openvote                                                     DateTime?              @db.Timestamptz(6)
+  closevote                                                    DateTime?              @db.Timestamptz(6)
+  submitted                                                    DateTime?              @db.Timestamptz(6)
+  type                                                         Int?
+  status                                                       Int?
+  wallet                                                       Int?
+  snapshot                                                     Int?
+  yes_votes                                                    Int?
+  no_votes                                                     Int?
+  election_snapshots                                           election_snapshots[]
+  proposal_no_votes_proposal_no_votes_proposal_idToproposals   proposal_no_votes[]    @relation("proposal_no_votes_proposal_idToproposals")
+  proposal_nominations                                         proposal_nominations[]
+  proposal_snapshots_proposal_snapshots_proposal_idToproposals proposal_snapshots[]   @relation("proposal_snapshots_proposal_idToproposals")
+  proposal_wallets_proposal_wallets_proposal_idToproposals     proposal_wallets[]     @relation("proposal_wallets_proposal_idToproposals")
+  proposal_yes_votes_proposal_yes_votes_proposal_idToproposals proposal_yes_votes[]   @relation("proposal_yes_votes_proposal_idToproposals")
+  proposal_no_votes_proposals_no_votesToproposal_no_votes      proposal_no_votes?     @relation("proposals_no_votesToproposal_no_votes", fields: [no_votes], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proposal_snapshots_proposals_snapshotToproposal_snapshots    proposal_snapshots?    @relation("proposals_snapshotToproposal_snapshots", fields: [snapshot], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proposal_statuses                                            proposal_statuses?     @relation(fields: [status], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proposal_types                                               proposal_types?        @relation(fields: [type], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proposal_wallets_proposals_walletToproposal_wallets          proposal_wallets?      @relation("proposals_walletToproposal_wallets", fields: [wallet], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proposal_yes_votes_proposals_yes_votesToproposal_yes_votes   proposal_yes_votes?    @relation("proposals_yes_votesToproposal_yes_votes", fields: [yes_votes], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([status], map: "idx_proposals_status")
+  @@index([type], map: "idx_proposals_type")
+  @@index([wallet], map: "idx_proposals_wallet")
+}
+
+model election_votes {
+  id           Int       @id @default(autoincrement())
+  election_id  Int
+  candidate_id Int
+  toaddress    String    @db.VarChar(255)
+  amountsent   Decimal   @db.Decimal
+  created      DateTime  @db.Timestamptz(6)
+  validvote    Boolean   @default(true)
+  elections    elections @relation(fields: [election_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  candidates   election_candidates @relation(fields: [candidate_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([election_id], map: "idx_election_votes_election_id")
+  @@index([candidate_id], map: "idx_election_votes_candidate_id")
+}

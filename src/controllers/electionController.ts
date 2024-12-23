@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { createModuleLogger } from '../utils/logger.js';
+import { Decimal } from '@prisma/client/runtime/library';
 import {
   createElection,
   getAllElections,
@@ -26,7 +27,8 @@ import {
   ElectionCandidate,
   ElectionPosition,
   ElectionStatus,
-  ElectionType
+  ElectionType,
+  CandidateVote
 } from '../types/electionTypes.js';
 
 const logger = createModuleLogger('electionController');
@@ -34,10 +36,26 @@ const logger = createModuleLogger('electionController');
 // Elections
 export const submitElection = async (req: Request, res: Response): Promise<void> => {
   try {
-    const election: Omit<Election, 'id'> = req.body;
-    logger.info({ election }, 'Submitting election');
+    const electionData = req.body;
+    logger.info({ electionData }, 'Submitting election');
     
-    const newElection = await createElection(election);
+    const newElection = await createElection({
+      title: electionData.title,
+      description: electionData.description,
+      reviewed: false,
+      approved: false,
+      votesactive: false,
+      openvote: null,
+      closevote: null,
+      created: new Date(),
+      type: electionData.type,
+      position: electionData.position,
+      firstcandidate: null,
+      secondcandidate: null,
+      status: 1, // Default status
+      snapshot: null
+    });
+
     logger.info({ electionId: newElection.id }, 'Election submitted successfully');
     res.status(201).json(newElection);
   } catch (error) {
@@ -343,4 +361,7 @@ export const removeElectionType = async (req: Request, res: Response, next: Next
     logger.error({ error, typeId: req.params.id }, 'Error removing election type');
     next(error);
   }
-}; 
+};
+
+export const submitElectionVote = undefined;
+export const fetchAllElectionVotes = undefined; 

@@ -4,6 +4,7 @@ import { proposalNominationFee } from '../utils/tokenCalcs.js';
 import { getKRC20OperationList } from '../services/kasplexAPI.js';
 import { getProposalById, createProposalNomination } from '../models/proposalModels.js';
 import { ProposalNomination, ProposalWallet } from '../types/proposalTypes.js';
+import { Decimal } from '@prisma/client/runtime/library';
 import dotenv from 'dotenv';
 
 const envFile = process.env.NODE_ENV === 'katgov' ? '.env.katgov' : '.env.kdao';
@@ -67,12 +68,13 @@ export const verifyNominationTransaction = async (req: Request, res: Response, n
         logger.info({ proposalId, hashRev }, 'Creating nomination record');
         
         const nomination = await createProposalNomination({
-          proposalId,
-          walletAddress,
-          nominationAmount: fee,
-          transactionHash: hashRev,
+          proposal_id: proposalId,
+          toaddress: walletAddress,
+          amountsent: new Decimal(fee.toString()),
+          hash: hashRev,
           created: new Date(),
-        } as Omit<ProposalNomination, 'id'>);
+          validvote: true
+        });
         
         logger.info({ nominationId: nomination.id, proposalId }, 'Nomination created successfully');
         res.status(201).json({ id: nomination.id, message: 'Nomination successful' });

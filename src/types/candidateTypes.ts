@@ -1,23 +1,23 @@
-export interface CandidateVote {
-  id: number;
-  candidateId: number;
-  walletAddress: string;
-  voteAmount: number;
-  created: Date;
-}
+import { Decimal } from '@prisma/client/runtime/library';
 
 export interface CandidateNomination {
   id: number;
-  candidateId: number;
-  walletAddress: string;
-  nominationAmount: number;
   created: Date;
+  hash: string | null;
+  toaddress: string;
+  amountsent: Decimal;
+  validvote: boolean;
+  candidate_id: number;
 }
 
 export interface CandidateWallet {
   id: number;
   address: string;
-  encryptedPrivateKey: string;
+  encryptedprivatekey: string;
+  balance: Decimal;
+  created: Date;
+  active: boolean;
+  candidate_id: number | null;
 }
 
 export interface CandidateStatus {

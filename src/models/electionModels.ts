@@ -1,31 +1,50 @@
-import pool from '../config/db.js';
+import { prisma } from '../config/prisma.js';
 import { createModuleLogger } from '../utils/logger.js';
+import { Decimal } from '@prisma/client/runtime/library';
 import {
   Election,
   ElectionCandidate,
   ElectionPosition,
   ElectionStatus,
   ElectionType,
-  ElectionPrimary,
-  ElectionSnapshot
+  ElectionSnapshot,
+  CandidateVote
 } from '../types/electionTypes.js';
 
 const logger = createModuleLogger('electionModels');
 
 // Elections
-export const createElection = async (election: Omit<Election, 'id'>): Promise<Election> => {
+export const createElection = async (election: {
+  title: string;
+  description: string;
+  reviewed: boolean;
+  approved: boolean;
+  votesactive: boolean;
+  openvote: Date | null;
+  closevote: Date | null;
+  created: Date;
+  type: number;
+  position: number;
+  firstcandidate?: number | null;
+  secondcandidate?: number | null;
+  status: number;
+  snapshot?: number | null;
+}): Promise<Election> => {
   try {
-    const { title, description, reviewed, approved, votesActive, openVote, closeVote, created } = election;
-    logger.info({ title, reviewed, approved, votesActive }, 'Creating election');
-    const query = `
-      INSERT INTO elections (title, description, reviewed, approved, votesActive, openVote, closeVote, created)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING *;
-    `;
-    const values = [title, description, reviewed, approved, votesActive, openVote, closeVote, created];
-    const result = await pool.query(query, values);
-    logger.debug({ id: result.rows[0].id }, 'Election created successfully');
-    return result.rows[0];
+    logger.info({ election }, 'Creating election');
+    const result = await prisma.elections.create({
+      data: election,
+      include: {
+        election_types: true,
+        election_positions: true,
+        election_candidates_elections_firstcandidateToelection_candidates: true,
+        election_candidates_elections_secondcandidateToelection_candidates: true,
+        election_statuses: true,
+        election_snapshots: true
+      }
+    });
+    logger.debug({ id: result.id }, 'Election created successfully');
+    return result as unknown as Election;
   } catch (error) {
     logger.error({ error, election }, 'Error creating election');
     throw new Error('Could not create election');
@@ -35,21 +54,59 @@ export const createElection = async (election: Omit<Election, 'id'>): Promise<El
 export const getAllElections = async (): Promise<Election[]> => {
   try {
     logger.info('Fetching all elections');
-    const query = 'SELECT * FROM elections';
-    const result = await pool.query(query);
-    logger.debug({ count: result.rows.length }, 'Retrieved all elections');
-    return result.rows;
+    const result = await prisma.elections.findMany({
+      include: {
+        election_types: true,
+        election_positions: true,
+        election_candidates_elections_firstcandidateToelection_candidates: true,
+        election_candidates_elections_secondcandidateToelection_candidates: true,
+        election_statuses: true,
+        election_snapshots: true
+      }
+    });
+    logger.debug({ count: result.length }, 'Retrieved all elections');
+    return result as unknown as Election[];
   } catch (error) {
     logger.error({ error }, 'Error fetching elections');
     throw new Error('Could not fetch elections');
   }
 };
 
+export const updateElection = async (id: number, election: Partial<Election>): Promise<Election | null> => {
+  try {
+    logger.info({ id, ...election }, 'Updating election');
+    const result = await prisma.elections.update({
+      where: { id },
+      data: election,
+      include: {
+        election_types: true,
+        election_positions: true,
+        election_candidates_elections_firstcandidateToelection_candidates: true,
+        election_candidates_elections_secondcandidateToelection_candidates: true,
+        election_statuses: true,
+        election_snapshots: true
+      }
+    });
+
+    if (result) {
+      logger.debug({ id }, 'Election updated successfully');
+      return result as unknown as Election;
+    }
+    
+    logger.warn({ id }, 'No election found to update');
+    return null;
+  } catch (error) {
+    logger.error({ error, id, election }, 'Error updating election');
+    throw new Error('Could not update election');
+  }
+};
+
 export const deleteElection = async (id: number): Promise<void> => {
   try {
     logger.info({ id }, 'Deleting election');
-    const query = 'DELETE FROM elections WHERE id = $1';
-    await pool.query(query, [id]);
+    await prisma.elections.delete({
+      where: { id }
+    });
     logger.debug({ id }, 'Election deleted successfully');
   } catch (error) {
     logger.error({ error, id }, 'Error deleting election');
@@ -61,9 +118,20 @@ export const deleteElection = async (id: number): Promise<void> => {
 export const getAllElectionCandidates = async (): Promise<ElectionCandidate[]> => {
   try {
     logger.info('Fetching all election candidates');
-    const result = await pool.query('SELECT * FROM election_candidates');
-    logger.debug({ count: result.rows.length }, 'Retrieved all election candidates');
-    return result.rows;
+    const result = await prisma.election_candidates.findMany({
+      include: {
+        elections_elections_firstcandidateToelection_candidates: true,
+        elections_elections_secondcandidateToelection_candidates: true,
+        candidate_nominations_candidate_nominations_candidate_idToelection_candidates: true,
+        candidate_nominations_election_candidates_nominationsTocandidate_nominations: true,
+        candidate_votes: true,
+        candidate_wallets_candidate_wallets_candidate_idToelection_candidates: true,
+        candidate_wallets_election_candidates_walletTocandidate_wallets: true,
+        election_primaries: true
+      }
+    });
+    logger.debug({ count: result.length }, 'Retrieved all election candidates');
+    return result as unknown as ElectionCandidate[];
   } catch (error) {
     logger.error({ error }, 'Error fetching election candidates');
     throw new Error('Could not fetch election candidates');
@@ -72,30 +140,65 @@ export const getAllElectionCandidates = async (): Promise<ElectionCandidate[]> =
 
 export const createElectionCandidate = async (candidate: Omit<ElectionCandidate, 'id'>): Promise<ElectionCandidate> => {
   try {
-    const { name, twitter, discord, telegram, created, data } = candidate;
+    const { name, twitter, discord, telegram, created, data, type, status, wallet, nominations } = candidate;
     logger.info({ name, twitter, discord, telegram }, 'Creating election candidate');
-    const result = await pool.query(
-      'INSERT INTO election_candidates (name, twitter, discord, telegram, created, data) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [name, twitter, discord, telegram, created, data]
-    );
-    logger.debug({ id: result.rows[0].id }, 'Election candidate created successfully');
-    return result.rows[0];
+    const result = await prisma.election_candidates.create({
+      data: {
+        name,
+        twitter,
+        discord,
+        telegram,
+        created,
+        data,
+        type,
+        status,
+        wallet,
+        nominations
+      },
+      include: {
+        elections_elections_firstcandidateToelection_candidates: true,
+        elections_elections_secondcandidateToelection_candidates: true,
+        candidate_nominations_candidate_nominations_candidate_idToelection_candidates: true,
+        candidate_nominations_election_candidates_nominationsTocandidate_nominations: true,
+        candidate_votes: true,
+        candidate_wallets_candidate_wallets_candidate_idToelection_candidates: true,
+        candidate_wallets_election_candidates_walletTocandidate_wallets: true,
+        election_primaries: true
+      }
+    });
+    logger.debug({ id: result.id }, 'Election candidate created successfully');
+    return result as unknown as ElectionCandidate;
   } catch (error) {
     logger.error({ error, candidate }, 'Error creating election candidate');
     throw new Error('Could not create election candidate');
   }
 };
 
-export const updateElectionCandidate = async (id: number, candidate: Partial<ElectionCandidate>): Promise<ElectionCandidate> => {
+export const updateElectionCandidate = async (id: number, candidate: Partial<ElectionCandidate>): Promise<ElectionCandidate | null> => {
   try {
-    const { name, twitter, discord, telegram, data } = candidate;
-    logger.info({ id, name, twitter, discord, telegram }, 'Updating election candidate');
-    const result = await pool.query(
-      'UPDATE election_candidates SET name = COALESCE($1, name), twitter = COALESCE($2, twitter), discord = COALESCE($3, discord), telegram = COALESCE($4, telegram), data = COALESCE($5, data) WHERE id = $6 RETURNING *',
-      [name, twitter, discord, telegram, data, id]
-    );
-    logger.debug({ id }, 'Election candidate updated successfully');
-    return result.rows[0];
+    logger.info({ id, ...candidate }, 'Updating election candidate');
+    const result = await prisma.election_candidates.update({
+      where: { id },
+      data: candidate,
+      include: {
+        elections_elections_firstcandidateToelection_candidates: true,
+        elections_elections_secondcandidateToelection_candidates: true,
+        candidate_nominations_candidate_nominations_candidate_idToelection_candidates: true,
+        candidate_nominations_election_candidates_nominationsTocandidate_nominations: true,
+        candidate_votes: true,
+        candidate_wallets_candidate_wallets_candidate_idToelection_candidates: true,
+        candidate_wallets_election_candidates_walletTocandidate_wallets: true,
+        election_primaries: true
+      }
+    });
+
+    if (result) {
+      logger.debug({ id }, 'Election candidate updated successfully');
+      return result as unknown as ElectionCandidate;
+    }
+    
+    logger.warn({ id }, 'No election candidate found to update');
+    return null;
   } catch (error) {
     logger.error({ error, id, candidate }, 'Error updating election candidate');
     throw new Error('Could not update election candidate');
@@ -105,7 +208,9 @@ export const updateElectionCandidate = async (id: number, candidate: Partial<Ele
 export const deleteElectionCandidate = async (id: number): Promise<void> => {
   try {
     logger.info({ id }, 'Deleting election candidate');
-    await pool.query('DELETE FROM election_candidates WHERE id = $1', [id]);
+    await prisma.election_candidates.delete({
+      where: { id }
+    });
     logger.debug({ id }, 'Election candidate deleted successfully');
   } catch (error) {
     logger.error({ error, id }, 'Error deleting election candidate');
@@ -117,9 +222,9 @@ export const deleteElectionCandidate = async (id: number): Promise<void> => {
 export const getAllElectionPositions = async (): Promise<ElectionPosition[]> => {
   try {
     logger.info('Fetching all election positions');
-    const result = await pool.query('SELECT * FROM election_positions');
-    logger.debug({ count: result.rows.length }, 'Retrieved all election positions');
-    return result.rows;
+    const result = await prisma.election_positions.findMany();
+    logger.debug({ count: result.length }, 'Retrieved all election positions');
+    return result as unknown as ElectionPosition[];
   } catch (error) {
     logger.error({ error }, 'Error fetching election positions');
     throw new Error('Could not fetch election positions');
@@ -129,27 +234,38 @@ export const getAllElectionPositions = async (): Promise<ElectionPosition[]> => 
 export const createElectionPosition = async (title: string, description: string): Promise<ElectionPosition> => {
   try {
     logger.info({ title }, 'Creating election position');
-    const result = await pool.query(
-      'INSERT INTO election_positions (title, description) VALUES ($1, $2) RETURNING *',
-      [title, description]
-    );
-    logger.debug({ id: result.rows[0].id }, 'Election position created successfully');
-    return result.rows[0];
+    const result = await prisma.election_positions.create({
+      data: {
+        title,
+        description
+      }
+    });
+    logger.debug({ id: result.id }, 'Election position created successfully');
+    return result as unknown as ElectionPosition;
   } catch (error) {
     logger.error({ error, title, description }, 'Error creating election position');
     throw new Error('Could not create election position');
   }
 };
 
-export const updateElectionPosition = async (id: number, title: string, description: string): Promise<ElectionPosition> => {
+export const updateElectionPosition = async (id: number, title: string, description: string): Promise<ElectionPosition | null> => {
   try {
     logger.info({ id, title }, 'Updating election position');
-    const result = await pool.query(
-      'UPDATE election_positions SET title = $1, description = $2 WHERE id = $3 RETURNING *',
-      [title, description, id]
-    );
-    logger.debug({ id }, 'Election position updated successfully');
-    return result.rows[0];
+    const result = await prisma.election_positions.update({
+      where: { id },
+      data: {
+        title,
+        description
+      }
+    });
+
+    if (result) {
+      logger.debug({ id }, 'Election position updated successfully');
+      return result as unknown as ElectionPosition;
+    }
+    
+    logger.warn({ id }, 'No election position found to update');
+    return null;
   } catch (error) {
     logger.error({ error, id, title, description }, 'Error updating election position');
     throw new Error('Could not update election position');
@@ -159,7 +275,9 @@ export const updateElectionPosition = async (id: number, title: string, descript
 export const deleteElectionPosition = async (id: number): Promise<void> => {
   try {
     logger.info({ id }, 'Deleting election position');
-    await pool.query('DELETE FROM election_positions WHERE id = $1', [id]);
+    await prisma.election_positions.delete({
+      where: { id }
+    });
     logger.debug({ id }, 'Election position deleted successfully');
   } catch (error) {
     logger.error({ error, id }, 'Error deleting election position');
@@ -171,9 +289,9 @@ export const deleteElectionPosition = async (id: number): Promise<void> => {
 export const getAllElectionStatuses = async (): Promise<ElectionStatus[]> => {
   try {
     logger.info('Fetching all election statuses');
-    const result = await pool.query('SELECT * FROM election_statuses');
-    logger.debug({ count: result.rows.length }, 'Retrieved all election statuses');
-    return result.rows;
+    const result = await prisma.election_statuses.findMany();
+    logger.debug({ count: result.length }, 'Retrieved all election statuses');
+    return result as unknown as ElectionStatus[];
   } catch (error) {
     logger.error({ error }, 'Error fetching election statuses');
     throw new Error('Could not fetch election statuses');
@@ -183,27 +301,38 @@ export const getAllElectionStatuses = async (): Promise<ElectionStatus[]> => {
 export const createElectionStatus = async (name: string, active: boolean): Promise<ElectionStatus> => {
   try {
     logger.info({ name, active }, 'Creating election status');
-    const result = await pool.query(
-      'INSERT INTO election_statuses (name, active) VALUES ($1, $2) RETURNING *',
-      [name, active]
-    );
-    logger.debug({ id: result.rows[0].id }, 'Election status created successfully');
-    return result.rows[0];
+    const result = await prisma.election_statuses.create({
+      data: {
+        name,
+        active
+      }
+    });
+    logger.debug({ id: result.id }, 'Election status created successfully');
+    return result as unknown as ElectionStatus;
   } catch (error) {
     logger.error({ error, name, active }, 'Error creating election status');
     throw new Error('Could not create election status');
   }
 };
 
-export const updateElectionStatus = async (id: number, name: string, active: boolean): Promise<ElectionStatus> => {
+export const updateElectionStatus = async (id: number, name: string, active: boolean): Promise<ElectionStatus | null> => {
   try {
     logger.info({ id, name, active }, 'Updating election status');
-    const result = await pool.query(
-      'UPDATE election_statuses SET name = $1, active = $2 WHERE id = $3 RETURNING *',
-      [name, active, id]
-    );
-    logger.debug({ id }, 'Election status updated successfully');
-    return result.rows[0];
+    const result = await prisma.election_statuses.update({
+      where: { id },
+      data: {
+        name,
+        active
+      }
+    });
+
+    if (result) {
+      logger.debug({ id }, 'Election status updated successfully');
+      return result as unknown as ElectionStatus;
+    }
+    
+    logger.warn({ id }, 'No election status found to update');
+    return null;
   } catch (error) {
     logger.error({ error, id, name, active }, 'Error updating election status');
     throw new Error('Could not update election status');
@@ -213,7 +342,9 @@ export const updateElectionStatus = async (id: number, name: string, active: boo
 export const deleteElectionStatus = async (id: number): Promise<void> => {
   try {
     logger.info({ id }, 'Deleting election status');
-    await pool.query('DELETE FROM election_statuses WHERE id = $1', [id]);
+    await prisma.election_statuses.delete({
+      where: { id }
+    });
     logger.debug({ id }, 'Election status deleted successfully');
   } catch (error) {
     logger.error({ error, id }, 'Error deleting election status');
@@ -225,9 +356,9 @@ export const deleteElectionStatus = async (id: number): Promise<void> => {
 export const getAllElectionTypes = async (): Promise<ElectionType[]> => {
   try {
     logger.info('Fetching all election types');
-    const result = await pool.query('SELECT * FROM election_types');
-    logger.debug({ count: result.rows.length }, 'Retrieved all election types');
-    return result.rows;
+    const result = await prisma.election_types.findMany();
+    logger.debug({ count: result.length }, 'Retrieved all election types');
+    return result as unknown as ElectionType[];
   } catch (error) {
     logger.error({ error }, 'Error fetching election types');
     throw new Error('Could not fetch election types');
@@ -237,27 +368,38 @@ export const getAllElectionTypes = async (): Promise<ElectionType[]> => {
 export const createElectionType = async (name: string, active: boolean): Promise<ElectionType> => {
   try {
     logger.info({ name, active }, 'Creating election type');
-    const result = await pool.query(
-      'INSERT INTO election_types (name, active) VALUES ($1, $2) RETURNING *',
-      [name, active]
-    );
-    logger.debug({ id: result.rows[0].id }, 'Election type created successfully');
-    return result.rows[0];
+    const result = await prisma.election_types.create({
+      data: {
+        name,
+        active
+      }
+    });
+    logger.debug({ id: result.id }, 'Election type created successfully');
+    return result as unknown as ElectionType;
   } catch (error) {
     logger.error({ error, name, active }, 'Error creating election type');
     throw new Error('Could not create election type');
   }
 };
 
-export const updateElectionType = async (id: number, name: string, active: boolean): Promise<ElectionType> => {
+export const updateElectionType = async (id: number, name: string, active: boolean): Promise<ElectionType | null> => {
   try {
     logger.info({ id, name, active }, 'Updating election type');
-    const result = await pool.query(
-      'UPDATE election_types SET name = $1, active = $2 WHERE id = $3 RETURNING *',
-      [name, active, id]
-    );
-    logger.debug({ id }, 'Election type updated successfully');
-    return result.rows[0];
+    const result = await prisma.election_types.update({
+      where: { id },
+      data: {
+        name,
+        active
+      }
+    });
+
+    if (result) {
+      logger.debug({ id }, 'Election type updated successfully');
+      return result as unknown as ElectionType;
+    }
+    
+    logger.warn({ id }, 'No election type found to update');
+    return null;
   } catch (error) {
     logger.error({ error, id, name, active }, 'Error updating election type');
     throw new Error('Could not update election type');
@@ -267,7 +409,9 @@ export const updateElectionType = async (id: number, name: string, active: boole
 export const deleteElectionType = async (id: number): Promise<void> => {
   try {
     logger.info({ id }, 'Deleting election type');
-    await pool.query('DELETE FROM election_types WHERE id = $1', [id]);
+    await prisma.election_types.delete({
+      where: { id }
+    });
     logger.debug({ id }, 'Election type deleted successfully');
   } catch (error) {
     logger.error({ error, id }, 'Error deleting election type');
@@ -279,9 +423,15 @@ export const deleteElectionType = async (id: number): Promise<void> => {
 export const getAllElectionSnapshots = async (): Promise<ElectionSnapshot[]> => {
   try {
     logger.info('Fetching all election snapshots');
-    const result = await pool.query('SELECT * FROM election_snapshots');
-    logger.debug({ count: result.rows.length }, 'Retrieved all election snapshots');
-    return result.rows;
+    const result = await prisma.election_snapshots.findMany({
+      include: {
+        elections: true,
+        election_primaries: true,
+        candidate_votes: true
+      }
+    });
+    logger.debug({ count: result.length }, 'Retrieved all election snapshots');
+    return result as unknown as ElectionSnapshot[];
   } catch (error) {
     logger.error({ error }, 'Error fetching election snapshots');
     throw new Error('Could not fetch election snapshots');
@@ -291,27 +441,50 @@ export const getAllElectionSnapshots = async (): Promise<ElectionSnapshot[]> => 
 export const createElectionSnapshot = async (electionId: number, snapshotData: Record<string, any>): Promise<ElectionSnapshot> => {
   try {
     logger.info({ electionId }, 'Creating election snapshot');
-    const result = await pool.query(
-      'INSERT INTO election_snapshots (election_id, data, created) VALUES ($1, $2, NOW()) RETURNING *',
-      [electionId, snapshotData]
-    );
-    logger.debug({ id: result.rows[0].id }, 'Election snapshot created successfully');
-    return result.rows[0];
+    const result = await prisma.election_snapshots.create({
+      data: {
+        generated: new Date(),
+        data: snapshotData,
+        elections: {
+          connect: { id: electionId }
+        }
+      },
+      include: {
+        elections: true,
+        election_primaries: true,
+        candidate_votes: true
+      }
+    });
+    logger.debug({ id: result.id }, 'Election snapshot created successfully');
+    return result as unknown as ElectionSnapshot;
   } catch (error) {
     logger.error({ error, electionId, snapshotData }, 'Error creating election snapshot');
     throw new Error('Could not create election snapshot');
   }
 };
 
-export const updateElectionSnapshot = async (id: number, snapshotData: Record<string, any>): Promise<ElectionSnapshot> => {
+export const updateElectionSnapshot = async (id: number, snapshotData: Record<string, any>): Promise<ElectionSnapshot | null> => {
   try {
     logger.info({ id, snapshotData }, 'Updating election snapshot');
-    const result = await pool.query(
-      'UPDATE election_snapshots SET data = $1 WHERE id = $2 RETURNING *',
-      [snapshotData, id]
-    );
-    logger.debug({ id }, 'Election snapshot updated successfully');
-    return result.rows[0];
+    const result = await prisma.election_snapshots.update({
+      where: { id },
+      data: {
+        data: snapshotData
+      },
+      include: {
+        elections: true,
+        election_primaries: true,
+        candidate_votes: true
+      }
+    });
+
+    if (result) {
+      logger.debug({ id }, 'Election snapshot updated successfully');
+      return result as unknown as ElectionSnapshot;
+    }
+    
+    logger.warn({ id }, 'No election snapshot found to update');
+    return null;
   } catch (error) {
     logger.error({ error, id, snapshotData }, 'Error updating election snapshot');
     throw new Error('Could not update election snapshot');
@@ -321,10 +494,13 @@ export const updateElectionSnapshot = async (id: number, snapshotData: Record<st
 export const deleteElectionSnapshot = async (id: number): Promise<void> => {
   try {
     logger.info({ id }, 'Deleting election snapshot');
-    await pool.query('DELETE FROM election_snapshots WHERE id = $1', [id]);
+    await prisma.election_snapshots.delete({
+      where: { id }
+    });
     logger.debug({ id }, 'Election snapshot deleted successfully');
   } catch (error) {
     logger.error({ error, id }, 'Error deleting election snapshot');
     throw new Error('Could not delete election snapshot');
   }
-}; 
+};
+  
