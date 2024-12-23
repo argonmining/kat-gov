@@ -18,10 +18,10 @@ export interface ProposalVote {
   proposal_id: number;
   toaddress: string;
   amountsent: Decimal;
-  created: Date;
   votescounted: number | null;
   validvote: boolean;
   proposal_snapshot_id: number | null;
+  isYesVote?: boolean;
 }
 
 export interface ProposalYesVote extends ProposalVote {

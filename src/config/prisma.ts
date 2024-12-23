@@ -10,11 +10,19 @@ const getDatabaseUrl = () => {
   return `postgresql://${user}:${password}@${host}:${port}/${name}`;
 };
 
+// Add near the top, after creating logger
+const dbUrl = getDatabaseUrl();
+logger.info({
+  nodeEnv: config.nodeEnv,
+  dbName: config.db.name,
+  dbUrl
+}, 'Prisma configuration');
+
 // Create Prisma client with dynamic database URL
 export const prisma = new PrismaClient({
   datasources: {
     db: {
-      url: getDatabaseUrl(),
+      url: dbUrl,
     },
   },
   log: [
@@ -24,6 +32,22 @@ export const prisma = new PrismaClient({
     { emit: 'event', level: 'warn' },
   ],
 });
+
+// Add connection test
+prisma.$connect()
+  .then(() => {
+    logger.info('Successfully connected to database');
+    return prisma.proposals.findMany({
+      take: 1,
+      select: { id: true }
+    });
+  })
+  .then((result) => {
+    logger.info({ result }, 'Test query result');
+  })
+  .catch((error) => {
+    logger.error({ error }, 'Database connection/query error');
+  });
 
 // Add logging to Prisma client
 prisma.$on('query', (e) => {

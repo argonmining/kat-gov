@@ -56,16 +56,25 @@ export const submitProposal = async (req: Request, res: Response, next: NextFunc
     const proposalData = req.body;
     logger.info({ proposalData }, 'Submitting proposal');
     
+    // First create a new Kaspa wallet
+    const { address, encryptedPrivateKey } = await createKaspaWallet();
+    
+    // Create the wallet record in the database
+    const wallet = await createProposalWallet(address, encryptedPrivateKey);
+    
+    // Now create the proposal with all the frontend data plus the new wallet
     const newProposal = await createProposal({
       title: proposalData.title,
       description: proposalData.description,
-      submitted: new Date(),
-      reviewed: false,
-      approved: false,
+      body: proposalData.body,
+      type: proposalData.type,
+      submitted: new Date(proposalData.submitted),
+      reviewed: proposalData.reviewed ?? false,
+      approved: proposalData.approved ?? false,
       passed: false,
       votesActive: false,
-      status: 1, // Default status
-      wallet: proposalData.wallet
+      status: proposalData.status,
+      wallet: wallet.id
     });
 
     logger.info({ proposalId: newProposal.id }, 'Proposal submitted successfully');
@@ -81,9 +90,17 @@ export const fetchAllProposals = async (req: Request, res: Response): Promise<vo
     const statusName = req.query.status as string;
     let statusId: number | undefined = undefined;
 
+    logger.info({ 
+      query: req.query,
+      statusName,
+      url: req.url,
+      method: req.method
+    }, 'Incoming proposal fetch request');
+
     if (statusName) {
       logger.info({ statusName }, 'Looking up status ID for status name');
       const statuses = await getAllProposalStatuses();
+      logger.debug({ availableStatuses: statuses }, 'Available status mappings');
       const status = statuses.find(s => s.name.toLowerCase() === statusName.toLowerCase());
       if (status) {
         statusId = status.id;
@@ -104,7 +121,11 @@ export const fetchAllProposals = async (req: Request, res: Response): Promise<vo
     logger.info({ filters, sort, limit, offset }, 'Fetching proposals');
 
     const proposals = await getAllProposals(filters, sort, limit, offset);
-    logger.debug({ count: proposals.length }, 'Proposals retrieved');
+    logger.debug({ 
+      count: proposals.length,
+      filters,
+      firstProposal: proposals[0]
+    }, 'Proposals retrieved');
 
     res.status(200).json(proposals);
   } catch (error) {

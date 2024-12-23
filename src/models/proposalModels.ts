@@ -1,6 +1,5 @@
 import { prisma } from '../config/prisma.js';
 import { createModuleLogger } from '../utils/logger.js';
-import { Decimal } from '@prisma/client/runtime/library';
 import {
   Proposal,
   ProposalVote,
@@ -19,22 +18,39 @@ const logger = createModuleLogger('proposalModels');
 export const createProposal = async (proposal: {
   title: string;
   description: string;
+  body?: string;
+  type: number;
+  approved?: boolean;
+  reviewed?: boolean;
+  passed?: boolean;
   submitted: Date;
-  reviewed: boolean;
-  approved: boolean;
-  passed: boolean;
-  votesActive: boolean;
+  votesActive?: boolean;
   status: number;
   wallet: number;
 }): Promise<Proposal> => {
   try {
-    const { title, description, submitted, reviewed, approved, passed, votesActive, status, wallet } = proposal;
+    const { 
+      title, 
+      description, 
+      body, 
+      type, 
+      submitted, 
+      reviewed, 
+      approved, 
+      passed, 
+      votesActive, 
+      status, 
+      wallet 
+    } = proposal;
+    
     logger.info({ title, status, wallet }, 'Creating proposal');
     
     const result = await prisma.proposals.create({
       data: {
         title,
         description,
+        body,
+        type,
         submitted,
         reviewed: reviewed ?? false,
         approved: approved ?? false,
@@ -164,56 +180,14 @@ export const getProposalById = async (id: number): Promise<Proposal | null> => {
 };
 
 // Proposal Votes
-export const createProposalVote = async (vote: {
-  proposal_id: number;
-  toaddress: string;
-  amountsent: number | Decimal;
-  votescounted?: number | null;
-  validvote: boolean;
-  proposal_snapshot_id?: number | null;
-  isYesVote: boolean;
-}): Promise<ProposalVote> => {
+export const createProposalVote = async (vote: Omit<ProposalVote, 'id'>): Promise<ProposalVote> => {
   try {
-    const { proposal_id, toaddress, amountsent, votescounted, validvote, proposal_snapshot_id, isYesVote } = vote;
-    logger.info({ proposal_id, toaddress, amountsent, isYesVote }, 'Creating proposal vote');
+    const { proposal_id, toaddress, amountsent, votescounted, validvote, proposal_snapshot_id } = vote;
+    logger.info({ proposal_id, toaddress, amountsent }, 'Creating proposal vote');
     
-    if (isYesVote) {
-      const result = await prisma.proposal_yes_votes.create({
-        data: {
-          proposal_id,
-          toaddress,
-          amountsent: new Decimal(amountsent.toString()),
-          votescounted,
-          validvote,
-          proposal_snapshot_id,
-          created: new Date()
-        },
-        include: {
-          proposals_proposal_yes_votes_proposal_idToproposals: true,
-          proposal_snapshots: true
-        }
-      });
-      logger.debug({ id: result.id }, 'Proposal yes vote created successfully');
-      return result as unknown as ProposalVote;
-    } else {
-      const result = await prisma.proposal_no_votes.create({
-        data: {
-          proposal_id,
-          toaddress,
-          amountsent: new Decimal(amountsent.toString()),
-          votescounted,
-          validvote,
-          proposal_snapshot_id,
-          created: new Date()
-        },
-        include: {
-          proposals_proposal_no_votes_proposal_idToproposals: true,
-          proposal_snapshots: true
-        }
-      });
-      logger.debug({ id: result.id }, 'Proposal no vote created successfully');
-      return result as unknown as ProposalVote;
-    }
+    // Note: This is a base class that both yes and no votes extend from
+    // The actual implementation should use either proposal_yes_votes or proposal_no_votes
+    throw new Error('Use createProposalYesVote or createProposalNoVote instead');
   } catch (error) {
     logger.error({ error, vote }, 'Error creating proposal vote');
     throw new Error('Could not create proposal vote');
