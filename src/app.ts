@@ -9,6 +9,7 @@ import nominationFeeRoutes from './routes/nominationFeeRoutes.js';
 import { handleError } from './utils/errorHandler.js';
 import pkg from 'websocket';
 import './scheduler/deleteOldDraftProposals.js';
+import { config } from './config/env.js';
 
 const { w3cwebsocket: W3CWebSocket } = pkg;
 
@@ -17,9 +18,7 @@ globalThis.WebSocket = W3CWebSocket as any;
 const app = express();
 
 // Middleware
-app.use(cors({
-  origin: '*'
-}));
+app.use(cors(config.cors));
 app.use(json());
 app.use(urlencoded({ extended: true }));
 

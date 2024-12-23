@@ -1,4 +1,5 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import { createModuleLogger } from '../utils/logger.js';
 import {
   // Elections
   submitElection,
@@ -26,7 +27,21 @@ import {
   removeElectionType
 } from '../controllers/electionController.js';
 
+const logger = createModuleLogger('electionRoutes');
 const router = Router();
+
+// Middleware to log route access
+const logRoute = (req: Request, res: Response, next: NextFunction) => {
+  logger.info({
+    method: req.method,
+    path: req.path,
+    query: req.query,
+    params: req.params,
+  }, 'Route accessed');
+  next();
+};
+
+router.use(logRoute);
 
 // Elections
 router.post('/', submitElection);

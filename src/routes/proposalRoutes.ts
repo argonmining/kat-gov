@@ -1,4 +1,5 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import { createModuleLogger } from '../utils/logger.js';
 import {
   // Proposals
   submitProposal,
@@ -33,10 +34,29 @@ import {
   fetchAllProposalStatuses,
   addProposalStatus,
   modifyProposalStatus,
-  removeProposalStatus
+  removeProposalStatus,
+  // Proposal Snapshots
+  fetchAllProposalSnapshots,
+  addProposalSnapshot,
+  modifyProposalSnapshot,
+  removeProposalSnapshot
 } from '../controllers/proposalController.js';
 
+const logger = createModuleLogger('proposalRoutes');
 const router = Router();
+
+// Middleware to log route access
+const logRoute = (req: Request, res: Response, next: NextFunction) => {
+  logger.info({
+    method: req.method,
+    path: req.path,
+    query: req.query,
+    params: req.params,
+  }, 'Route accessed');
+  next();
+};
+
+router.use(logRoute);
 
 // Proposals
 router.post('/', submitProposal);
@@ -78,5 +98,11 @@ router.get('/statuses', fetchAllProposalStatuses);
 router.post('/statuses', addProposalStatus);
 router.put('/statuses/:id', modifyProposalStatus);
 router.delete('/statuses/:id', removeProposalStatus);
+
+// Proposal Snapshots
+router.get('/snapshots', fetchAllProposalSnapshots);
+router.post('/snapshots', addProposalSnapshot);
+router.put('/snapshots/:id', modifyProposalSnapshot);
+router.delete('/snapshots/:id', removeProposalSnapshot);
 
 export default router; 

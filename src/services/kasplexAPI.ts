@@ -1,13 +1,28 @@
-import axios from 'axios';
-import dotenv from 'dotenv';
-import process from 'process';
+import { $fetch } from 'ofetch';
 import { getKSPRMarketplaceData } from './kaspaAPI.js';
+import { createModuleLogger } from '../utils/logger.js';
+import { config } from '../config/env.js';
 
-// Load environment variables from .env file
-const envFile = process.env.NODE_ENV === 'katgov' ? '.env.katgov' : '.env.kdao';
-dotenv.config({ path: envFile });
+// Initialize logger
+const logger = createModuleLogger('kasplexAPI');
 
-const BASE_URL = process.env.KASPLEX_API_BASE_URL;
+// Create a configured fetch instance
+const apiFetch = $fetch.create({
+  baseURL: config.kasplex.apiBaseUrl,
+  retry: 1,
+  onRequest({ request, options }) {
+    logger.debug({ url: request, options }, 'Making API request');
+  },
+  onRequestError({ request, error }) {
+    logger.error({ url: request, error }, 'API request error');
+  },
+  onResponse({ request, response }) {
+    logger.debug({ url: request, status: response.status }, 'API response received');
+  },
+  onResponseError({ request, response }) {
+    logger.error({ url: request, status: response.status }, 'API response error');
+  }
+});
 
 /**
  * Get the balance of a KRC-20 token for a specific address.
@@ -17,10 +32,10 @@ const BASE_URL = process.env.KASPLEX_API_BASE_URL;
  */
 export async function getKRC20Balance(address: string, tick: string): Promise<any> {
   try {
-    const response = await axios.get(`${BASE_URL}/address/${address}/token/${tick}`);
-    return response.data;
+    logger.info({ address, tick }, 'Fetching KRC20 balance');
+    return await apiFetch(`/address/${address}/token/${tick}`);
   } catch (error) {
-    console.error('Error in getKRC20Balance:', error);
+    logger.error({ error, address, tick }, 'Error in getKRC20Balance');
     throw error;
   }
 }
@@ -31,10 +46,10 @@ export async function getKRC20Balance(address: string, tick: string): Promise<an
  */
 export async function getKRC20OperationList(params: { address: string, tick: string }): Promise<any> {
   try {
-    const response = await axios.get(`${BASE_URL}/oplist`, { params });
-    return response.data.result;
+    logger.info(params, 'Fetching KRC20 operation list');
+    return await apiFetch('/oplist', { params });
   } catch (error) {
-    console.error('Error in getKRC20OperationList:', error);
+    logger.error({ error, params }, 'Error in getKRC20OperationList');
     throw error;
   }
 }
@@ -46,10 +61,10 @@ export async function getKRC20OperationList(params: { address: string, tick: str
  */
 export async function getKRC20OperationDetails(id: string): Promise<any> {
   try {
-    const response = await axios.get(`${BASE_URL}/op/${id}`);
-    return response.data.result;
+    logger.info({ id }, 'Fetching KRC20 operation details');
+    return await apiFetch(`/op/${id}`);
   } catch (error) {
-    console.error('Error in getKRC20OperationDetails:', error);
+    logger.error({ error, id }, 'Error in getKRC20OperationDetails');
     throw error;
   }
 }
@@ -61,10 +76,10 @@ export async function getKRC20OperationDetails(id: string): Promise<any> {
  */
 export async function getKRC20Info(tick: string): Promise<any> {
   try {
-    const response = await axios.get(`${BASE_URL}/token/${tick}`);
-    return response.data.result;
+    logger.info({ tick }, 'Fetching KRC20 info');
+    return await apiFetch(`/token/${tick}`);
   } catch (error) {
-    console.error('Error in getKRC20Info:', error);
+    logger.error({ error, tick }, 'Error in getKRC20Info');
     throw error;
   }
 }
@@ -76,25 +91,27 @@ export async function getKRC20Info(tick: string): Promise<any> {
  */
 export async function getTokenPrice(ticker: string): Promise<number> {
   try {
-    console.log(`Fetching marketplace data for token: ${ticker}`);
+    logger.info({ ticker }, 'Fetching token price');
     const marketplaceData = await getKSPRMarketplaceData();
-    console.log('Marketplace data retrieved:', marketplaceData);
+    logger.debug({ marketplaceData }, 'Marketplace data retrieved');
 
     const kasFloorPrice = marketplaceData['KAS']?.floor_price;
     const tickerFloorPrice = marketplaceData[ticker]?.floor_price;
 
-    console.log(`KAS floor price: ${kasFloorPrice}, ${ticker} floor price: ${tickerFloorPrice}`);
+    logger.debug({ kasFloorPrice, tickerFloorPrice }, 'Floor prices retrieved');
 
     if (kasFloorPrice === undefined || tickerFloorPrice === undefined) {
-      throw new Error(`Floor price not found for KAS or ${ticker}`);
+      const error = new Error(`Floor price not found for KAS or ${ticker}`);
+      logger.error({ error, ticker }, 'Missing floor price');
+      throw error;
     }
 
     const tokenPrice = kasFloorPrice * tickerFloorPrice;
-    console.log(`Calculated token price for ${ticker}: ${tokenPrice}`);
+    logger.info({ ticker, tokenPrice }, 'Token price calculated');
 
     return tokenPrice;
   } catch (error) {
-    console.error('Error calculating token price:', error);
+    logger.error({ error, ticker }, 'Error calculating token price');
     throw error;
   }
 }
