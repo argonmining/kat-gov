@@ -56,29 +56,33 @@ export const submitProposal = async (req: Request, res: Response, next: NextFunc
     const proposalData = req.body;
     logger.info({ proposalData }, 'Submitting proposal');
     
-    // First create a new Kaspa wallet
-    const { address, encryptedPrivateKey } = await createKaspaWallet();
-    
-    // Create the wallet record in the database
-    const wallet = await createProposalWallet(address, encryptedPrivateKey);
+    // First create a new Kaspa wallet if one wasn't provided
+    let wallet;
+    if (!proposalData.wallet) {
+      const { address, encryptedPrivateKey } = await createKaspaWallet();
+      wallet = await createProposalWallet(address, encryptedPrivateKey);
+    }
     
     // Now create the proposal with all the frontend data plus the new wallet
     const newProposal = await createProposal({
       title: proposalData.title,
-      description: proposalData.description,
-      body: proposalData.body,
-      type: proposalData.type,
-      submitted: new Date(proposalData.submitted),
-      reviewed: proposalData.reviewed ?? false,
-      approved: proposalData.approved ?? false,
+      description: proposalData.description || '',
+      body: proposalData.body || '',
+      type: proposalData.type || null,
+      submitted: new Date(),
+      reviewed: false,
+      approved: false,
       passed: false,
-      votesActive: false,
-      status: proposalData.status,
-      wallet: wallet.id
+      votesactive: false,
+      status: proposalData.status || 1, // Default to draft status if not provided
+      wallet: wallet?.id || proposalData.wallet
     });
 
+    // Fetch the complete proposal with related data
+    const completeProposal = await getProposalById(newProposal.id);
+    
     logger.info({ proposalId: newProposal.id }, 'Proposal submitted successfully');
-    res.status(201).json(newProposal);
+    res.status(201).json(completeProposal);
   } catch (error) {
     logger.error({ error, proposal: req.body }, 'Error submitting proposal');
     next(error);
@@ -87,74 +91,80 @@ export const submitProposal = async (req: Request, res: Response, next: NextFunc
 
 export const fetchAllProposals = async (req: Request, res: Response): Promise<void> => {
   try {
-    const statusName = req.query.status as string;
-    let statusId: number | undefined = undefined;
+    const {
+      status,
+      title,
+      sort = 'submitted',
+      limit = 100,
+      offset = 0
+    } = req.query;
 
     logger.info({ 
       query: req.query,
-      statusName,
       url: req.url,
       method: req.method
     }, 'Incoming proposal fetch request');
 
-    if (statusName) {
-      logger.info({ statusName }, 'Looking up status ID for status name');
+    // Get status ID if status name is provided
+    let statusId: number | undefined;
+    if (status) {
       const statuses = await getAllProposalStatuses();
-      logger.debug({ availableStatuses: statuses }, 'Available status mappings');
-      const status = statuses.find(s => s.name.toLowerCase() === statusName.toLowerCase());
-      if (status) {
-        statusId = status.id;
-        logger.debug({ statusName, statusId }, 'Found status ID for status name');
-      } else {
-        logger.warn({ statusName }, 'Status name not found');
+      const statusObj = statuses.find(s => s.name.toLowerCase() === (status as string).toLowerCase());
+      if (statusObj) {
+        statusId = statusObj.id;
       }
     }
 
-    const filters = {
-      title: req.query.title as string | undefined,
-      status: statusId
-    };
-    const sort = req.query.sort as string;
-    const limit = parseInt(req.query.limit as string, 10) || 100;
-    const offset = parseInt(req.query.offset as string, 10) || 0;
-
-    logger.info({ filters, sort, limit, offset }, 'Fetching proposals');
-
-    const proposals = await getAllProposals(filters, sort, limit, offset);
-    logger.debug({ 
-      count: proposals.length,
-      filters,
-      firstProposal: proposals[0]
-    }, 'Proposals retrieved');
+    const proposals = await getAllProposals({
+      title: title as string,
+      status: statusId,
+      sort: sort as string,
+      limit: Number(limit),
+      offset: Number(offset)
+    });
 
     res.status(200).json(proposals);
   } catch (error) {
-    logger.error({ error }, 'Error fetching proposals');
-    res.status(500).json({ error: 'Failed to fetch proposals' });
+    logger.error({ error, query: req.query }, 'Error fetching proposals');
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 export const modifyProposal = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const proposalId = parseInt(req.params.proposalId, 10);
+    const proposalId = parseInt(req.params.id, 10);
     if (isNaN(proposalId)) {
-      logger.warn({ proposalId: req.params.proposalId }, 'Invalid proposal ID format');
+      logger.warn({ proposalId: req.params.id }, 'Invalid proposal ID format');
       res.status(400).json({ error: 'Invalid proposal ID' });
       return;
     }
 
-    logger.info({ proposalId, updates: req.body }, 'Modifying proposal');
-    const updatedProposal = await updateProposal(proposalId, req.body);
+    const updateData = {
+      title: req.body.title,
+      description: req.body.description,
+      body: req.body.body,
+      type: req.body.type,
+      status: req.body.status,
+      reviewed: req.body.reviewed,
+      approved: req.body.approved,
+      passed: req.body.passed,
+      votesactive: req.body.votesActive
+    };
+
+    logger.info({ proposalId, updates: updateData }, 'Modifying proposal');
+    const updatedProposal = await updateProposal(proposalId, updateData);
     
     if (updatedProposal) {
+      // Fetch fresh data with all relations
+      const completeProposal = await getProposalById(proposalId);
       logger.info({ proposalId }, 'Proposal updated successfully');
-      res.status(200).json(updatedProposal);
+      res.status(200).json(completeProposal);
     } else {
       logger.warn({ proposalId }, 'Proposal not found');
       res.status(404).json({ error: 'Proposal not found' });
     }
   } catch (error) {
-    logger.error({ error, proposalId: req.params.proposalId }, 'Error modifying proposal');
+    logger.error({ error, proposalId: req.params.id }, 'Error modifying proposal');
     next(error);
   }
 };
@@ -469,8 +479,16 @@ export const fetchAllProposalTypes = async (req: Request, res: Response, next: N
   try {
     logger.info('Fetching all proposal types');
     const types = await getAllProposalTypes();
+    
+    // Transform to match frontend expectations
+    const transformedTypes = types.map(type => ({
+      id: type.id,
+      name: type.name || '',
+      simple: type.simplevote || false
+    }));
+    
     logger.debug({ typeCount: types.length }, 'Proposal types retrieved successfully');
-    res.status(200).json(types);
+    res.status(200).json(transformedTypes);
   } catch (error) {
     logger.error({ error }, 'Error fetching proposal types');
     next(error);
@@ -479,12 +497,20 @@ export const fetchAllProposalTypes = async (req: Request, res: Response, next: N
 
 export const addProposalType = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { name, active } = req.body;
-    logger.info({ name, active }, 'Adding proposal type');
+    const { name, simple } = req.body;
+    logger.info({ name, simple }, 'Adding proposal type');
     
-    const newType = await createProposalType(name, active);
+    const newType = await createProposalType(name, simple);
+    
+    // Transform to match frontend expectations
+    const transformedType = {
+      id: newType.id,
+      name: newType.name || '',
+      simple: newType.simplevote || false
+    };
+    
     logger.info({ typeId: newType.id }, 'Proposal type created successfully');
-    res.status(201).json(newType);
+    res.status(201).json(transformedType);
   } catch (error) {
     logger.error({ error, type: req.body }, 'Error adding proposal type');
     next(error);
@@ -500,12 +526,20 @@ export const modifyProposalType = async (req: Request, res: Response, next: Next
       return;
     }
 
-    const { name, active } = req.body;
-    logger.info({ typeId: id, name, active }, 'Modifying proposal type');
+    const { name, simple } = req.body;
+    logger.info({ typeId: id, name, simple }, 'Modifying proposal type');
     
-    const updatedType = await updateProposalType(id, name, active);
+    const updatedType = await updateProposalType(id, name, simple);
+    
+    // Transform to match frontend expectations
+    const transformedType = {
+      id: updatedType.id,
+      name: updatedType.name || '',
+      simple: updatedType.simplevote || false
+    };
+    
     logger.info({ typeId: id }, 'Proposal type updated successfully');
-    res.status(200).json(updatedType);
+    res.status(200).json(transformedType);
   } catch (error) {
     logger.error({ error, typeId: req.params.id }, 'Error modifying proposal type');
     next(error);
@@ -536,8 +570,16 @@ export const fetchAllProposalStatuses = async (req: Request, res: Response, next
   try {
     logger.info('Fetching all proposal statuses');
     const statuses = await getAllProposalStatuses();
+    
+    // Transform to match frontend expectations
+    const transformedStatuses = statuses.map(status => ({
+      id: status.id,
+      name: status.name || '',
+      active: status.active || false
+    }));
+    
     logger.debug({ statusCount: statuses.length }, 'Proposal statuses retrieved successfully');
-    res.status(200).json(statuses);
+    res.status(200).json(transformedStatuses);
   } catch (error) {
     logger.error({ error }, 'Error fetching proposal statuses');
     next(error);
@@ -550,8 +592,16 @@ export const addProposalStatus = async (req: Request, res: Response, next: NextF
     logger.info({ name, active }, 'Adding proposal status');
     
     const newStatus = await createProposalStatus(name, active);
+    
+    // Transform to match frontend expectations
+    const transformedStatus = {
+      id: newStatus.id,
+      name: newStatus.name || '',
+      active: newStatus.active || false
+    };
+    
     logger.info({ statusId: newStatus.id }, 'Proposal status created successfully');
-    res.status(201).json(newStatus);
+    res.status(201).json(transformedStatus);
   } catch (error) {
     logger.error({ error, status: req.body }, 'Error adding proposal status');
     next(error);
@@ -571,8 +621,16 @@ export const modifyProposalStatus = async (req: Request, res: Response, next: Ne
     logger.info({ statusId: id, name, active }, 'Modifying proposal status');
     
     const updatedStatus = await updateProposalStatus(id, name, active);
+    
+    // Transform to match frontend expectations
+    const transformedStatus = {
+      id: updatedStatus.id,
+      name: updatedStatus.name || '',
+      active: updatedStatus.active || false
+    };
+    
     logger.info({ statusId: id }, 'Proposal status updated successfully');
-    res.status(200).json(updatedStatus);
+    res.status(200).json(transformedStatus);
   } catch (error) {
     logger.error({ error, statusId: req.params.id }, 'Error modifying proposal status');
     next(error);

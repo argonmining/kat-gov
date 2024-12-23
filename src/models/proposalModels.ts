@@ -19,14 +19,16 @@ export const createProposal = async (proposal: {
   title: string;
   description: string;
   body?: string;
-  type: number;
+  type: number | null;
   approved?: boolean;
   reviewed?: boolean;
   passed?: boolean;
   submitted: Date;
-  votesActive?: boolean;
+  votesactive?: boolean;
   status: number;
   wallet: number;
+  openvote?: Date;
+  closevote?: Date;
 }): Promise<Proposal> => {
   try {
     const { 
@@ -38,64 +40,89 @@ export const createProposal = async (proposal: {
       reviewed, 
       approved, 
       passed, 
-      votesActive, 
+      votesactive, 
       status, 
-      wallet 
+      wallet,
+      openvote,
+      closevote
     } = proposal;
     
     logger.info({ title, status, wallet }, 'Creating proposal');
     
+    // Convert to database format
+    const createData = {
+      title,
+      description,
+      body,
+      type,
+      submitted,
+      reviewed: reviewed ?? false,
+      approved: approved ?? false,
+      passed: passed ?? false,
+      votesactive: votesactive ?? false,
+      status,
+      wallet,
+      openvote,
+      closevote
+    };
+    
     const result = await prisma.proposals.create({
-      data: {
-        title,
-        description,
-        body,
-        type,
-        submitted,
-        reviewed: reviewed ?? false,
-        approved: approved ?? false,
-        passed: passed ?? false,
-        votesactive: votesActive ?? false,
-        status,
-        wallet
-      },
+      data: createData,
       include: {
         proposal_statuses: true,
-        proposal_wallets_proposals_walletToproposal_wallets: true
+        proposal_wallets_proposals_walletToproposal_wallets: true,
+        proposal_types: true
       }
     });
 
+    // Transform the result to match frontend expectations
+    const transformedResult = {
+      ...result,
+      votesActive: result.votesactive,
+      proposal_wallets_proposals_walletToproposal_wallets: result.proposal_wallets_proposals_walletToproposal_wallets ? {
+        address: result.proposal_wallets_proposals_walletToproposal_wallets.address
+      } : null,
+      proposal_statuses: result.proposal_statuses ? {
+        id: result.proposal_statuses.id,
+        name: result.proposal_statuses.name,
+        active: result.proposal_statuses.active
+      } : null,
+      proposal_types: result.proposal_types ? {
+        id: result.proposal_types.id,
+        name: result.proposal_types.name,
+        simplevote: result.proposal_types.simplevote
+      } : null
+    };
+
     logger.debug({ id: result.id }, 'Proposal created successfully');
-    return result as unknown as Proposal;
+    return transformedResult as unknown as Proposal;
   } catch (error) {
     logger.error({ error, proposal }, 'Error creating proposal');
     throw new Error('Could not create proposal');
   }
 };
 
-export const getAllProposals = async (
-  filters: { title?: string; status?: number },
-  sort?: string,
-  limit: number = 100,
-  offset: number = 0
-): Promise<Proposal[]> => {
+export const getAllProposals = async (params: {
+  title?: string;
+  status?: number;
+  sort?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<Proposal[]> => {
   try {
-    logger.info({ filters, sort, limit, offset }, 'Fetching proposals');
+    const { title, status, sort = 'submitted', limit = 100, offset = 0 } = params;
+    logger.info({ params }, 'Fetching proposals');
 
     const where: any = {};
-    if (filters.title) {
-      where.title = { contains: filters.title, mode: 'insensitive' };
+    if (title) {
+      where.title = { contains: title, mode: 'insensitive' };
     }
-    if (filters.status !== undefined) {
-      where.status = filters.status;
+    if (status !== undefined) {
+      where.status = status;
     }
 
     const orderBy: any = {};
-    if (sort) {
-      orderBy[sort] = 'asc';
-    } else {
-      orderBy.submitted = 'desc'; // Default sort by submission date
-    }
+    orderBy[sort] = 'desc';
 
     const result = await prisma.proposals.findMany({
       where,
@@ -104,14 +131,34 @@ export const getAllProposals = async (
       skip: offset,
       include: {
         proposal_statuses: true,
-        proposal_wallets_proposals_walletToproposal_wallets: true
+        proposal_wallets_proposals_walletToproposal_wallets: true,
+        proposal_types: true
       }
     });
 
+    // Transform results to match frontend expectations
+    const transformedResults = result.map(proposal => ({
+      ...proposal,
+      votesActive: proposal.votesactive,
+      proposal_wallets_proposals_walletToproposal_wallets: proposal.proposal_wallets_proposals_walletToproposal_wallets ? {
+        address: proposal.proposal_wallets_proposals_walletToproposal_wallets.address
+      } : null,
+      proposal_statuses: proposal.proposal_statuses ? {
+        id: proposal.proposal_statuses.id,
+        name: proposal.proposal_statuses.name,
+        active: proposal.proposal_statuses.active
+      } : null,
+      proposal_types: proposal.proposal_types ? {
+        id: proposal.proposal_types.id,
+        name: proposal.proposal_types.name,
+        simplevote: proposal.proposal_types.simplevote
+      } : null
+    }));
+
     logger.debug({ count: result.length }, 'Retrieved proposals');
-    return result as unknown as Proposal[];
+    return transformedResults as unknown as Proposal[];
   } catch (error) {
-    logger.error({ error, filters, sort, limit, offset }, 'Error fetching proposals');
+    logger.error({ error }, 'Error fetching proposals');
     throw new Error('Could not fetch proposals');
   }
 };
@@ -120,18 +167,54 @@ export const updateProposal = async (id: number, proposal: Partial<Proposal>): P
   try {
     logger.info({ id, ...proposal }, 'Updating proposal');
     
+    // Convert frontend proposal to database format
+    const updateData = {
+      title: proposal.title,
+      description: proposal.description,
+      body: proposal.body,
+      type: proposal.type,
+      approved: proposal.approved,
+      reviewed: proposal.reviewed,
+      passed: proposal.passed,
+      votesactive: proposal.votesActive ?? proposal.votesactive,
+      status: proposal.status,
+      wallet: proposal.wallet,
+      openvote: proposal.openvote,
+      closevote: proposal.closevote
+    };
+    
     const result = await prisma.proposals.update({
       where: { id },
-      data: proposal,
+      data: updateData,
       include: {
         proposal_statuses: true,
-        proposal_wallets_proposals_walletToproposal_wallets: true
+        proposal_wallets_proposals_walletToproposal_wallets: true,
+        proposal_types: true
       }
     });
 
     if (result) {
+      // Transform result to match frontend expectations
+      const transformedResult = {
+        ...result,
+        votesActive: result.votesactive,
+        proposal_wallets_proposals_walletToproposal_wallets: result.proposal_wallets_proposals_walletToproposal_wallets ? {
+          address: result.proposal_wallets_proposals_walletToproposal_wallets.address
+        } : null,
+        proposal_statuses: result.proposal_statuses ? {
+          id: result.proposal_statuses.id,
+          name: result.proposal_statuses.name,
+          active: result.proposal_statuses.active
+        } : null,
+        proposal_types: result.proposal_types ? {
+          id: result.proposal_types.id,
+          name: result.proposal_types.name,
+          simplevote: result.proposal_types.simplevote
+        } : null
+      };
+      
       logger.debug({ id }, 'Proposal updated successfully');
-      return result as unknown as Proposal;
+      return transformedResult as unknown as Proposal;
     }
     
     logger.warn({ id }, 'No proposal found to update');
@@ -162,13 +245,33 @@ export const getProposalById = async (id: number): Promise<Proposal | null> => {
       where: { id },
       include: {
         proposal_statuses: true,
-        proposal_wallets_proposals_walletToproposal_wallets: true
+        proposal_wallets_proposals_walletToproposal_wallets: true,
+        proposal_types: true
       }
     });
 
     if (result) {
+      // Transform result to match frontend expectations
+      const transformedResult = {
+        ...result,
+        votesActive: result.votesactive,
+        proposal_wallets_proposals_walletToproposal_wallets: result.proposal_wallets_proposals_walletToproposal_wallets ? {
+          address: result.proposal_wallets_proposals_walletToproposal_wallets.address
+        } : null,
+        proposal_statuses: result.proposal_statuses ? {
+          id: result.proposal_statuses.id,
+          name: result.proposal_statuses.name,
+          active: result.proposal_statuses.active
+        } : null,
+        proposal_types: result.proposal_types ? {
+          id: result.proposal_types.id,
+          name: result.proposal_types.name,
+          simplevote: result.proposal_types.simplevote
+        } : null
+      };
+
       logger.debug({ id }, 'Proposal retrieved successfully');
-      return result as unknown as Proposal;
+      return transformedResult as unknown as Proposal;
     }
     
     logger.warn({ id }, 'No proposal found');
@@ -463,44 +566,56 @@ export const getAllProposalTypes = async (): Promise<ProposalType[]> => {
     logger.info('Fetching all proposal types');
     const result = await prisma.proposal_types.findMany();
     logger.debug({ count: result.length }, 'Retrieved all proposal types');
-    return result as unknown as ProposalType[];
+    return result.map(type => ({
+      id: type.id,
+      name: type.name || '',
+      simple: type.simplevote || false
+    })) as ProposalType[];
   } catch (error) {
     logger.error({ error }, 'Error fetching proposal types');
     throw new Error('Could not fetch proposal types');
   }
 };
 
-export const createProposalType = async (name: string, simplevote: boolean): Promise<ProposalType> => {
+export const createProposalType = async (name: string, simple: boolean): Promise<ProposalType> => {
   try {
-    logger.info({ name, simplevote }, 'Creating proposal type');
+    logger.info({ name, simple }, 'Creating proposal type');
     const result = await prisma.proposal_types.create({
       data: {
         name,
-        simplevote
+        simplevote: simple
       }
     });
     logger.debug({ id: result.id }, 'Proposal type created successfully');
-    return result as unknown as ProposalType;
+    return {
+      id: result.id,
+      name: result.name || '',
+      simple: result.simplevote || false
+    } as ProposalType;
   } catch (error) {
-    logger.error({ error, name, simplevote }, 'Error creating proposal type');
+    logger.error({ error, name, simple }, 'Error creating proposal type');
     throw new Error('Could not create proposal type');
   }
 };
 
-export const updateProposalType = async (id: number, name: string, simplevote: boolean): Promise<ProposalType> => {
+export const updateProposalType = async (id: number, name: string, simple: boolean): Promise<ProposalType> => {
   try {
-    logger.info({ id, name, simplevote }, 'Updating proposal type');
+    logger.info({ id, name, simple }, 'Updating proposal type');
     const result = await prisma.proposal_types.update({
       where: { id },
       data: {
         name,
-        simplevote
+        simplevote: simple
       }
     });
     logger.debug({ id }, 'Proposal type updated successfully');
-    return result as unknown as ProposalType;
+    return {
+      id: result.id,
+      name: result.name || '',
+      simple: result.simplevote || false
+    } as ProposalType;
   } catch (error) {
-    logger.error({ error, id, name, simplevote }, 'Error updating proposal type');
+    logger.error({ error, id, name, simple }, 'Error updating proposal type');
     throw new Error('Could not update proposal type');
   }
 };
@@ -524,7 +639,11 @@ export const getAllProposalStatuses = async (): Promise<ProposalStatus[]> => {
     logger.info('Fetching all proposal statuses');
     const result = await prisma.proposal_statuses.findMany();
     logger.debug({ count: result.length }, 'Retrieved all proposal statuses');
-    return result as unknown as ProposalStatus[];
+    return result.map(status => ({
+      id: status.id,
+      name: status.name || '',
+      active: status.active || false
+    })) as ProposalStatus[];
   } catch (error) {
     logger.error({ error }, 'Error fetching proposal statuses');
     throw new Error('Could not fetch proposal statuses');
@@ -541,7 +660,11 @@ export const createProposalStatus = async (name: string, active: boolean): Promi
       }
     });
     logger.debug({ id: result.id }, 'Proposal status created successfully');
-    return result as unknown as ProposalStatus;
+    return {
+      id: result.id,
+      name: result.name || '',
+      active: result.active || false
+    } as ProposalStatus;
   } catch (error) {
     logger.error({ error, name, active }, 'Error creating proposal status');
     throw new Error('Could not create proposal status');
@@ -559,7 +682,11 @@ export const updateProposalStatus = async (id: number, name: string, active: boo
       }
     });
     logger.debug({ id }, 'Proposal status updated successfully');
-    return result as unknown as ProposalStatus;
+    return {
+      id: result.id,
+      name: result.name || '',
+      active: result.active || false
+    } as ProposalStatus;
   } catch (error) {
     logger.error({ error, id, name, active }, 'Error updating proposal status');
     throw new Error('Could not update proposal status');

@@ -38,11 +38,22 @@ export const verifyNominationTransaction = async (req: Request, res: Response, n
     }
 
     const wallet = proposal.wallet as unknown as ProposalWallet;
+    if (!wallet.address) {
+      logger.warn({ proposalId }, 'Wallet address not found');
+      res.status(404).json({ error: 'Wallet address not found' });
+      return;
+    }
+
     const walletAddress = wallet.address;
     const targetAmount = fee * 100000000;
     logger.debug({ walletAddress, targetAmount }, 'Checking for transaction');
 
     const checkTransaction = async (): Promise<string | null> => {
+      if (!GOV_TOKEN_TICKER) {
+        logger.error('GOV_TOKEN_TICKER not configured');
+        throw new Error('GOV_TOKEN_TICKER not configured');
+      }
+
       const operations = await getKRC20OperationList({ address: walletAddress, tick: GOV_TOKEN_TICKER });
       for (const operation of operations) {
         if (operation.to === walletAddress && operation.amt === targetAmount && operation.tick === GOV_TOKEN_TICKER) {
@@ -62,22 +73,28 @@ export const verifyNominationTransaction = async (req: Request, res: Response, n
         return;
       }
 
-      const hashRev = await checkTransaction();
-      if (hashRev) {
+      try {
+        const hashRev = await checkTransaction();
+        if (hashRev) {
+          clearInterval(interval);
+          logger.info({ proposalId, hashRev }, 'Creating nomination record');
+          
+          const nomination = await createProposalNomination({
+            proposal_id: proposalId,
+            toaddress: walletAddress,
+            amountsent: new Decimal(fee.toString()),
+            hash: hashRev,
+            created: new Date(),
+            validvote: true
+          });
+          
+          logger.info({ nominationId: nomination.id, proposalId }, 'Nomination created successfully');
+          res.status(201).json({ id: nomination.id, message: 'Nomination successful' });
+        }
+      } catch (error) {
         clearInterval(interval);
-        logger.info({ proposalId, hashRev }, 'Creating nomination record');
-        
-        const nomination = await createProposalNomination({
-          proposal_id: proposalId,
-          toaddress: walletAddress,
-          amountsent: new Decimal(fee.toString()),
-          hash: hashRev,
-          created: new Date(),
-          validvote: true
-        });
-        
-        logger.info({ nominationId: nomination.id, proposalId }, 'Nomination created successfully');
-        res.status(201).json({ id: nomination.id, message: 'Nomination successful' });
+        logger.error({ error, proposalId }, 'Error during transaction check');
+        res.status(500).json({ error: 'Error during transaction verification' });
       }
     }, 3000);
   } catch (error) {

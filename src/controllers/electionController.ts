@@ -45,8 +45,8 @@ export const submitElection = async (req: Request, res: Response): Promise<void>
       reviewed: false,
       approved: false,
       votesactive: false,
-      openvote: null,
-      closevote: null,
+      openvote: electionData.startDate ? new Date(electionData.startDate) : null,
+      closevote: electionData.endDate ? new Date(electionData.endDate) : null,
       created: new Date(),
       type: electionData.type,
       position: electionData.position,
@@ -56,8 +56,17 @@ export const submitElection = async (req: Request, res: Response): Promise<void>
       snapshot: null
     });
 
+    // Transform to match frontend format
+    const transformedElection = {
+      id: newElection.id,
+      title: newElection.title,
+      description: newElection.description,
+      startDate: newElection.openvote?.toISOString(),
+      endDate: newElection.closevote?.toISOString()
+    };
+
     logger.info({ electionId: newElection.id }, 'Election submitted successfully');
-    res.status(201).json(newElection);
+    res.status(201).json(transformedElection);
   } catch (error) {
     logger.error({ error, election: req.body }, 'Error submitting election');
     res.status(500).json({ error: 'Failed to submit election' });
@@ -68,8 +77,18 @@ export const fetchAllElections = async (req: Request, res: Response): Promise<vo
   try {
     logger.info('Fetching all elections');
     const elections = await getAllElections();
+
+    // Transform to match frontend format
+    const transformedElections = elections.map(election => ({
+      id: election.id,
+      title: election.title || '',
+      description: election.description || '',
+      startDate: election.openvote?.toISOString(),
+      endDate: election.closevote?.toISOString()
+    }));
+
     logger.debug({ electionCount: elections.length }, 'Elections retrieved successfully');
-    res.status(200).json(elections);
+    res.status(200).json(transformedElections);
   } catch (error) {
     logger.error({ error }, 'Error fetching elections');
     res.status(500).json({ error: 'Failed to fetch elections' });
