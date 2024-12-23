@@ -802,15 +802,30 @@ export const deleteProposalSnapshot = async (id: number): Promise<void> => {
 export const deleteOldDraftProposals = async (): Promise<number> => {
   try {
     logger.info('Deleting old draft proposals');
+    
     const result = await prisma.proposals.deleteMany({
       where: {
-        reviewed: false,
-        submitted: {
-          lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // 7 days ago
-        }
+        AND: [
+          {
+            OR: [
+              { title: 'A draft proposal, please replace with the title of your proposal.' },
+              { description: 'Please replace this text with a short description of your proposal.' },
+              { title: { contains: 'test', mode: 'insensitive' } },
+              { title: { contains: 'ashton test', mode: 'insensitive' } },
+              { description: { contains: 'test', mode: 'insensitive' } },
+              { description: { contains: 'ashton test', mode: 'insensitive' } }
+            ]
+          },
+          {
+            submitted: {
+              lt: new Date(Date.now() - 8 * 60 * 60 * 1000) // 8 hours ago
+            }
+          }
+        ]
       }
     });
-    logger.debug({ count: result.count }, 'Deleted old draft proposals');
+
+    logger.info({ count: result.count }, 'Old draft proposals deleted successfully');
     return result.count;
   } catch (error) {
     logger.error({ error }, 'Error deleting old draft proposals');
