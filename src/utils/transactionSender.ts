@@ -1,6 +1,8 @@
 import { EventEmitter } from 'events'
 import { kaspaToSompi, type IPaymentOutput, createTransactions, PrivateKey, UtxoProcessor, UtxoContext, type RpcClient } from "../wasm/kaspa/kaspa.js";
+import { createModuleLogger } from './logger.js';
 
+const logger = createModuleLogger('transactionSender');
 
 export default class TransactionSender extends EventEmitter {
   private networkId: string;
@@ -22,25 +24,22 @@ export default class TransactionSender extends EventEmitter {
   }
 
   async transferFunds(address: string, amount: string) {
+    logger.info({ address, amount }, 'Creating transaction for fund transfer');
 
-    console.log(`TrxManager: Creating Transaction`)
     let payments: IPaymentOutput[] = [{
       address: address,
       amount: kaspaToSompi(amount)!
     }];
 
     const transactionId = await this.send(payments);
-    console.log(`TrxManager: Sent payments. Transaction ID: ${transactionId}`);
+    logger.info({ transactionId }, 'Funds transfer completed');
 
     return transactionId;
-
   }
 
   async send(outputs: IPaymentOutput[]) {
-
     let context = this.context
-    console.log(outputs);
-    console.log(`TrxManager: Context to be used: ${this.context}`);
+    logger.debug({ outputs }, 'Processing transaction outputs');
     
     const { transactions, summary } = await createTransactions({
       entries: context,
@@ -48,11 +47,13 @@ export default class TransactionSender extends EventEmitter {
       changeAddress: this.privateKey.toPublicKey().toAddress(this.networkId).toString(),
       priorityFee: kaspaToSompi("0.02")
     });
-    console.log(`TrxManager: Transaction Length: ${transactions.length}`)
+
+    logger.debug({ transactionCount: transactions.length }, 'Transactions created');
+
     // Handle the first transaction immediately
     if (transactions.length > 0) {
       const firstTransaction = transactions[0];
-      console.log(`TrxManager: Payment with transaction ID: ${firstTransaction.id} to be signed and submitted`);
+      logger.info({ transactionId: firstTransaction.id }, 'Signing and submitting first transaction');
       
       firstTransaction.sign([this.privateKey]);
       await firstTransaction.submit(this.rpc);
@@ -61,7 +62,7 @@ export default class TransactionSender extends EventEmitter {
     // Handle the remaining transactions, waiting for the `time-to-submit` event
     for (let i = 1; i < transactions.length; i++) {
       const transaction = transactions[i];
-      console.log(`TrxManager: Payment with transaction ID: ${transaction.id} to be signed`);
+      logger.info({ transactionId: transaction.id, index: i }, 'Signing and submitting subsequent transaction');
       transaction.sign([this.privateKey]);
       await transaction.submit(this.rpc);
     }
@@ -73,10 +74,12 @@ export default class TransactionSender extends EventEmitter {
 
   private registerProcessor () {
     this.processor.addEventListener("utxo-proc-start", async () => {
-      console.log(`TrxManager: registerProcessor - this.context.clear()`);
+      logger.debug('Clearing context');
       await this.context.clear()
-      console.log(`TrxManager: registerProcessor - tracking pool address`);
-      await this.context.trackAddresses([ this.privateKey.toPublicKey().toAddress(this.networkId).toString() ])
+      
+      const poolAddress = this.privateKey.toPublicKey().toAddress(this.networkId).toString();
+      logger.debug({ poolAddress }, 'Tracking pool address');
+      await this.context.trackAddresses([ poolAddress ])
     })
     this.processor.start()
   }  

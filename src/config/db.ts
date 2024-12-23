@@ -1,31 +1,32 @@
 import pkg from 'pg';
 const { Pool } = pkg;
-import dotenv from 'dotenv';
-import process from 'process';
+import { createModuleLogger } from '../utils/logger.js';
+import { config } from './env.js';
 
-const envFile = process.env.NODE_ENV === 'katgov' ? '.env.katgov' : '.env.kdao';
-dotenv.config({ path: envFile });
+const logger = createModuleLogger('database');
 
 const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASS,
-  port: parseInt(process.env.DB_PORT || '5432', 10),
+  user: config.db.user,
+  host: config.db.host,
+  database: config.db.name,
+  password: config.db.password,
+  port: config.db.port,
 });
 
 pool.on('connect', () => {
-  console.log('Connected to the PostgreSQL database');
+  logger.info('Connected to the PostgreSQL database');
 });
 
 pool.on('error', (err) => {
-  console.error('Database connection error:', err);
+  logger.error({ error: err }, 'Database connection error');
   process.exit(-1);
 });
 
-console.log('DB_USER:', process.env.DB_USER);
-console.log('DB_HOST:', process.env.DB_HOST);
-console.log('DB_NAME:', process.env.DB_NAME);
-console.log('DB_PORT:', process.env.DB_PORT);
+logger.debug({
+  user: config.db.user,
+  host: config.db.host,
+  database: config.db.name,
+  port: config.db.port
+}, 'Database configuration loaded');
 
 export default pool;
