@@ -42,7 +42,7 @@ export const getWalletTransactions: RequestHandler<WalletTransactionsParams> = a
         logger.info({ address }, 'Fetching treasury transactions for wallet');
 
         // Verify this is actually a treasury wallet
-        if (!config.kaspa.treasuryWallets.includes(address)) {
+        if (!config.kaspa.treasuryWallets.some(wallet => wallet.address === address)) {
             logger.warn({ address }, 'Attempted to fetch transactions for non-treasury wallet');
             res.status(403).json({ error: 'Not a treasury wallet' });
             return;

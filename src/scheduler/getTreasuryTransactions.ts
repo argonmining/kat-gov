@@ -229,14 +229,14 @@ export async function getTreasuryTransactions() {
         
         const treasuryWallets = config.kaspa.treasuryWallets;
         
-        for (const walletAddress of treasuryWallets) {
-            logger.info({ walletAddress }, 'Processing treasury wallet');
+        for (const wallet of treasuryWallets) {
+            logger.info({ walletAddress: wallet.address, walletName: wallet.name }, 'Processing treasury wallet');
             
             try {
-                await fetchAllKasplexTransactions(walletAddress);
-                await fetchAllKaspaTransactions(walletAddress);
+                await fetchAllKasplexTransactions(wallet.address);
+                await fetchAllKaspaTransactions(wallet.address);
             } catch (error) {
-                logger.error({ error, walletAddress }, 'Error processing wallet');
+                logger.error({ error, walletAddress: wallet.address, walletName: wallet.name }, 'Error processing wallet');
                 continue;
             }
         }

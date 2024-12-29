@@ -12,6 +12,11 @@ dotenv.config({ path: envFile });
 
 logger.info({ nodeEnv: process.env.NODE_ENV, envFile }, 'Environment configuration loaded');
 
+interface TreasuryWallet {
+  name: string;
+  address: string;
+}
+
 // Common environment variables used across the application
 export const config = {
   nodeEnv: process.env.NODE_ENV || 'kdao',
@@ -43,7 +48,7 @@ export const config = {
     noPrivateKey: process.env.NO_PRIVATE_KEY,
     priorityFeeValue: process.env.PRIORITY_FEE_VALUE || '0.5',
     wasmResolver: process.env.KASPA_WASM_RESOLVER,
-    treasuryWallets: process.env.TREASURY_WALLETS ? process.env.TREASURY_WALLETS.split(',') : [],
+    treasuryWallets: process.env.TREASURY_WALLETS ? JSON.parse(process.env.TREASURY_WALLETS) as TreasuryWallet[] : [],
   },
   kasplex: {
     apiBaseUrl: process.env.KASPLEX_API_BASE_URL || 'https://api.kasplex.org/v1/krc20',
