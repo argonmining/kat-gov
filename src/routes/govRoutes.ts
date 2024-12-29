@@ -86,6 +86,7 @@ router.get('/proposal/:id/nominations', proposalController.fetchNominationsForPr
 router.get('/proposal/:id/nominations/count', proposalController.fetchNominationCount);
 router.get('/proposal/nomination/fee', proposalController.getNominationFee);
 router.post('/proposal/nomination/create', proposalController.verifyNominationTransaction);
+router.get('/proposal/:id/nominations/status', proposalController.getNominationVerificationStatus);
 
 // ============================================================================
 // Election Management Routes

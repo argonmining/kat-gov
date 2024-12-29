@@ -789,7 +789,7 @@ export const getNominationFee = async (req: Request, res: Response, next: NextFu
 export const verifyNominationTransaction = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { fee, proposalId } = req.body;
-    logger.info({ proposalId, fee }, 'Verifying nomination transaction');
+    logger.info({ proposalId, fee }, 'Starting nomination transaction verification');
 
     const proposal = await getProposalById(proposalId);
     if (!proposal || !proposal.proposal_wallets_proposals_walletToproposal_wallets) {
@@ -809,6 +809,13 @@ export const verifyNominationTransaction = async (req: Request, res: Response, n
     const targetAmount = new Decimal(fee).mul(new Decimal('100000000')).toNumber();
     logger.debug({ walletAddress, targetAmount, originalFee: fee }, 'Checking for transaction with calculated amount');
 
+    // Send immediate response that verification has started
+    res.status(202).json({ 
+      status: 'pending',
+      message: 'Verification process started',
+      retryAfter: 3 // seconds
+    });
+
     const checkTransaction = async (): Promise<string | null> => {
       if (!GOV_TOKEN_TICKER) {
         logger.error('GOV_TOKEN_TICKER not configured');
@@ -816,93 +823,125 @@ export const verifyNominationTransaction = async (req: Request, res: Response, n
       }
 
       try {
-        const operations = await getKRC20OperationList({ address: walletAddress, tick: GOV_TOKEN_TICKER });
+        const operations = await getKRC20OperationList({
+          address: walletAddress,
+          tick: GOV_TOKEN_TICKER
+        });
+
+        if (!Array.isArray(operations) || operations.length === 0) {
+          logger.debug('No operations found for address');
+          return null;
+        }
+
         for (const operation of operations) {
-          if (operation.to === walletAddress && operation.amt === targetAmount && operation.tick === GOV_TOKEN_TICKER) {
-            logger.debug({ hashRev: operation.hashRev }, 'Found matching transaction');
+          if (
+            operation.to === walletAddress && 
+            operation.amt === targetAmount && 
+            operation.tick === GOV_TOKEN_TICKER
+          ) {
+            logger.debug({ 
+              hashRev: operation.hashRev,
+              amount: operation.amt,
+              tick: operation.tick 
+            }, 'Found matching transaction');
             return operation.hashRev;
           }
         }
         return null;
       } catch (error) {
-        logger.error({ error, walletAddress }, 'Error fetching KRC20 operations');
+        logger.error({ 
+          error, 
+          walletAddress,
+          tick: GOV_TOKEN_TICKER,
+          targetAmount 
+        }, 'Error fetching KRC20 operations');
         throw new Error('Failed to fetch transaction data');
       }
     };
 
-    let transactionCheckAttempts = 0;
-    const maxAttempts = 30; // 90 seconds with 3-second intervals
-    const interval = setInterval(async () => {
-      if (transactionCheckAttempts >= maxAttempts) {
-        clearInterval(interval);
-        logger.warn({ proposalId }, 'Transaction verification timed out');
-        res.status(408).json({ 
-          error: 'Transaction not found',
-          message: 'No matching transaction was found within the time limit. Please verify you have sent the correct amount to the correct address.'
-        });
-        return;
-      }
+    // Start verification process in the background
+    (async () => {
+      let transactionCheckAttempts = 0;
+      const maxAttempts = 30; // 90 seconds with 3-second intervals
 
-      try {
-        const hashRev = await checkTransaction();
-        if (hashRev) {
-          clearInterval(interval);
-          logger.info({ proposalId, hashRev }, 'Creating nomination record');
-          
-          const nomination = await createProposalNomination({
-            proposal_id: proposalId,
-            toaddress: walletAddress,
-            amountsent: new Decimal(fee.toString()),
-            hash: hashRev,
-            created: new Date(),
-            validvote: true
-          });
-          
-          logger.info({ nominationId: nomination.id, proposalId }, 'Nomination created successfully');
-          res.status(201).json({ id: nomination.id, message: 'Nomination successful' });
-        } else {
+      while (transactionCheckAttempts < maxAttempts) {
+        try {
+          const hashRev = await checkTransaction();
+          if (hashRev) {
+            logger.info({ proposalId, hashRev }, 'Creating nomination record');
+            
+            const nomination = await createProposalNomination({
+              proposal_id: proposalId,
+              toaddress: walletAddress,
+              amountsent: new Decimal(fee.toString()),
+              hash: hashRev,
+              created: new Date(),
+              validvote: true
+            });
+            
+            logger.info({ nominationId: nomination.id, proposalId }, 'Nomination created successfully');
+            return;
+          }
+
           transactionCheckAttempts++;
           logger.debug({ 
             attempt: transactionCheckAttempts, 
             maxAttempts, 
             proposalId 
           }, 'Transaction not found, continuing to check');
-        }
-      } catch (error) {
-        clearInterval(interval);
-        logger.error({ error, proposalId }, 'Error during transaction check');
-        
-        // Handle specific error cases
-        if (error instanceof Error) {
-          if (error.message === 'GOV_TOKEN_TICKER not configured') {
-            res.status(500).json({ 
-              error: 'Server configuration error',
-              message: 'Please contact support. Server is not properly configured.'
-            });
-          } else if (error.message === 'Failed to fetch transaction data') {
-            res.status(503).json({ 
-              error: 'Service unavailable',
-              message: 'Unable to verify transaction at this time. Please try again later.'
-            });
-          } else {
-            res.status(500).json({ 
-              error: 'Verification failed',
-              message: 'An error occurred while verifying the transaction. Please try again.'
-            });
-          }
-        } else {
-          res.status(500).json({ 
-            error: 'Unknown error',
-            message: 'An unexpected error occurred. Please try again.'
-          });
+
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        } catch (error) {
+          logger.error({ error, proposalId }, 'Error during transaction check');
+          return;
         }
       }
-    }, 3000);
+
+      logger.warn({ proposalId }, 'Transaction verification timed out');
+    })();
+
   } catch (error) {
-    logger.error({ error, proposalId: req.body.proposalId }, 'Error verifying nomination transaction');
-    res.status(500).json({ 
-      error: 'Verification setup failed',
-      message: 'Failed to start verification process. Please try again.'
-    });
+    logger.error({ error, proposalId: req.body.proposalId }, 'Error initiating verification process');
+    next(error);
+  }
+};
+
+export const getNominationVerificationStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const proposalId = parseInt(req.params.id, 10);
+    const { hash } = req.query;
+
+    if (isNaN(proposalId)) {
+      logger.warn({ proposalId: req.params.id }, 'Invalid proposal ID format');
+      res.status(400).json({ error: 'Invalid proposal ID' });
+      return;
+    }
+
+    if (!hash || typeof hash !== 'string') {
+      logger.warn({ proposalId, hash }, 'Missing or invalid hash parameter');
+      res.status(400).json({ error: 'Missing or invalid hash parameter' });
+      return;
+    }
+
+    // Check if a nomination with this hash exists
+    const nominations = await getNominationsForProposal(proposalId);
+    const nomination = nominations.find(n => n.hash === hash);
+
+    if (nomination) {
+      logger.info({ proposalId, hash }, 'Nomination verification completed');
+      res.status(200).json({
+        status: 'completed',
+        nomination
+      });
+    } else {
+      logger.debug({ proposalId, hash }, 'Nomination not found, still pending');
+      res.status(404).json({
+        status: 'pending',
+        message: 'Nomination not found'
+      });
+    }
+  } catch (error) {
+    logger.error({ error, proposalId: req.params.id }, 'Error checking nomination status');
+    next(error);
   }
 }; 
