@@ -9,7 +9,9 @@ const logger = createModuleLogger('kasplexAPI');
 // Create a configured fetch instance
 const apiFetch = $fetch.create({
   baseURL: config.kasplex.apiBaseUrl,
-  retry: 1,
+  retry: 3,
+  retryDelay: 1000,
+  timeout: 10000,
   onRequest({ request, options }) {
     logger.debug({ url: request, options }, 'Making API request');
   },
@@ -20,7 +22,12 @@ const apiFetch = $fetch.create({
     logger.debug({ url: request, status: response.status }, 'API response received');
   },
   onResponseError({ request, response }) {
-    logger.error({ url: request, status: response.status }, 'API response error');
+    logger.error({ 
+      url: request, 
+      status: response.status,
+      statusText: response.statusText,
+      body: response._data
+    }, 'API response error');
   }
 });
 
