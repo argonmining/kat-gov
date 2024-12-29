@@ -805,8 +805,9 @@ export const verifyNominationTransaction = async (req: Request, res: Response, n
       return;
     }
 
-    const targetAmount = fee * 100000000;
-    logger.debug({ walletAddress, targetAmount }, 'Checking for transaction');
+    // Convert fee to sompi (1 KAS = 100000000 sompi) using Decimal for precise math
+    const targetAmount = new Decimal(fee).mul(new Decimal('100000000')).toNumber();
+    logger.debug({ walletAddress, targetAmount, originalFee: fee }, 'Checking for transaction with calculated amount');
 
     const checkTransaction = async (): Promise<string | null> => {
       if (!GOV_TOKEN_TICKER) {
