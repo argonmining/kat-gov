@@ -792,20 +792,19 @@ export const verifyNominationTransaction = async (req: Request, res: Response, n
     logger.info({ proposalId, fee }, 'Verifying nomination transaction');
 
     const proposal = await getProposalById(proposalId);
-    if (!proposal || !proposal.wallet) {
+    if (!proposal || !proposal.proposal_wallets_proposals_walletToproposal_wallets) {
       logger.warn({ proposalId }, 'Proposal or wallet not found');
       res.status(404).json({ error: 'Proposal or wallet not found' });
       return;
     }
 
-    const wallet = proposal.wallet as unknown as ProposalWallet;
-    if (!wallet.address) {
+    const walletAddress = proposal.proposal_wallets_proposals_walletToproposal_wallets.address;
+    if (!walletAddress) {
       logger.warn({ proposalId }, 'Wallet address not found');
       res.status(404).json({ error: 'Wallet address not found' });
       return;
     }
 
-    const walletAddress = wallet.address;
     const targetAmount = fee * 100000000;
     logger.debug({ walletAddress, targetAmount }, 'Checking for transaction');
 
@@ -815,22 +814,31 @@ export const verifyNominationTransaction = async (req: Request, res: Response, n
         throw new Error('GOV_TOKEN_TICKER not configured');
       }
 
-      const operations = await getKRC20OperationList({ address: walletAddress, tick: GOV_TOKEN_TICKER });
-      for (const operation of operations) {
-        if (operation.to === walletAddress && operation.amt === targetAmount && operation.tick === GOV_TOKEN_TICKER) {
-          logger.debug({ hashRev: operation.hashRev }, 'Found matching transaction');
-          return operation.hashRev;
+      try {
+        const operations = await getKRC20OperationList({ address: walletAddress, tick: GOV_TOKEN_TICKER });
+        for (const operation of operations) {
+          if (operation.to === walletAddress && operation.amt === targetAmount && operation.tick === GOV_TOKEN_TICKER) {
+            logger.debug({ hashRev: operation.hashRev }, 'Found matching transaction');
+            return operation.hashRev;
+          }
         }
+        return null;
+      } catch (error) {
+        logger.error({ error, walletAddress }, 'Error fetching KRC20 operations');
+        throw new Error('Failed to fetch transaction data');
       }
-      return null;
     };
 
-    const startTime = Date.now();
+    let transactionCheckAttempts = 0;
+    const maxAttempts = 30; // 90 seconds with 3-second intervals
     const interval = setInterval(async () => {
-      if (Date.now() - startTime > 90000) {
+      if (transactionCheckAttempts >= maxAttempts) {
         clearInterval(interval);
         logger.warn({ proposalId }, 'Transaction verification timed out');
-        res.status(408).json({ error: 'Transaction not found within the time limit' });
+        res.status(408).json({ 
+          error: 'Transaction not found',
+          message: 'No matching transaction was found within the time limit. Please verify you have sent the correct amount to the correct address.'
+        });
         return;
       }
 
@@ -851,15 +859,49 @@ export const verifyNominationTransaction = async (req: Request, res: Response, n
           
           logger.info({ nominationId: nomination.id, proposalId }, 'Nomination created successfully');
           res.status(201).json({ id: nomination.id, message: 'Nomination successful' });
+        } else {
+          transactionCheckAttempts++;
+          logger.debug({ 
+            attempt: transactionCheckAttempts, 
+            maxAttempts, 
+            proposalId 
+          }, 'Transaction not found, continuing to check');
         }
       } catch (error) {
         clearInterval(interval);
         logger.error({ error, proposalId }, 'Error during transaction check');
-        res.status(500).json({ error: 'Error during transaction verification' });
+        
+        // Handle specific error cases
+        if (error instanceof Error) {
+          if (error.message === 'GOV_TOKEN_TICKER not configured') {
+            res.status(500).json({ 
+              error: 'Server configuration error',
+              message: 'Please contact support. Server is not properly configured.'
+            });
+          } else if (error.message === 'Failed to fetch transaction data') {
+            res.status(503).json({ 
+              error: 'Service unavailable',
+              message: 'Unable to verify transaction at this time. Please try again later.'
+            });
+          } else {
+            res.status(500).json({ 
+              error: 'Verification failed',
+              message: 'An error occurred while verifying the transaction. Please try again.'
+            });
+          }
+        } else {
+          res.status(500).json({ 
+            error: 'Unknown error',
+            message: 'An unexpected error occurred. Please try again.'
+          });
+        }
       }
     }, 3000);
   } catch (error) {
     logger.error({ error, proposalId: req.body.proposalId }, 'Error verifying nomination transaction');
-    next(error);
+    res.status(500).json({ 
+      error: 'Verification setup failed',
+      message: 'Failed to start verification process. Please try again.'
+    });
   }
 }; 
