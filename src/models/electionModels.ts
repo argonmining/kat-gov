@@ -8,8 +8,10 @@ import {
   ElectionStatus,
   ElectionType,
   ElectionSnapshot,
-  CandidateVote
+  CandidateVote,
+  ElectionVote
 } from '../types/electionTypes.js';
+import { calculateVoteWeight, validateVoteAmount } from '../utils/voteCalculator.js';
 
 const logger = createModuleLogger('electionModels');
 
@@ -501,6 +503,142 @@ export const deleteElectionSnapshot = async (id: number): Promise<void> => {
   } catch (error) {
     logger.error({ error, id }, 'Error deleting election snapshot');
     throw new Error('Could not delete election snapshot');
+  }
+};
+
+// Count active elections
+export const countActiveElections = async (): Promise<number> => {
+  try {
+    logger.info('Counting active elections');
+    
+    // First get the active status ID
+    const activeStatus = await prisma.election_statuses.findFirst({
+      where: {
+        name: 'Active',
+        active: true
+      }
+    });
+
+    if (!activeStatus) {
+      logger.warn('No active status found in election_statuses');
+      return 0;
+    }
+
+    const count = await prisma.elections.count({
+      where: {
+        status: activeStatus.id
+      }
+    });
+
+    logger.debug({ count }, 'Active elections counted successfully');
+    return count;
+  } catch (error) {
+    logger.error({ error }, 'Error counting active elections');
+    throw new Error('Could not count active elections');
+  }
+};
+
+export const getElectionById = async (id: number): Promise<Election | null> => {
+  try {
+    logger.info({ id }, 'Fetching election by ID');
+    const result = await prisma.elections.findUnique({
+      where: { id },
+      include: {
+        election_types: true,
+        election_positions: true,
+        election_candidates_elections_firstcandidateToelection_candidates: true,
+        election_candidates_elections_secondcandidateToelection_candidates: true,
+        election_statuses: true,
+        election_snapshots: true
+      }
+    });
+
+    if (result) {
+      logger.debug({ id }, 'Election retrieved successfully');
+      return result as unknown as Election;
+    }
+    
+    logger.warn({ id }, 'No election found');
+    return null;
+  } catch (error) {
+    logger.error({ error, id }, 'Error fetching election by ID');
+    throw new Error('Could not fetch election');
+  }
+};
+
+export const createElectionVote = async (vote: {
+  election_id: number;
+  candidate_id: number;
+  toaddress: string;
+  amountsent: number | Decimal;
+}): Promise<ElectionVote> => {
+  try {
+    const { election_id, candidate_id, toaddress, amountsent } = vote;
+    if (!election_id || !candidate_id || !toaddress || !amountsent) {
+      throw new Error('Missing required fields for vote');
+    }
+
+    logger.info({ election_id, candidate_id, toaddress, amountsent }, 'Creating election vote');
+
+    // Get election and its snapshot
+    const election = await getElectionById(election_id);
+    if (!election || !election.snapshot) {
+      throw new Error('Election or snapshot not found');
+    }
+
+    const snapshot = await prisma.election_snapshots.findUnique({
+      where: { id: election.snapshot }
+    });
+
+    if (!snapshot || !snapshot.data) {
+      throw new Error('Snapshot data not found');
+    }
+
+    // Validate amount against snapshot
+    const isValid = await validateVoteAmount(toaddress, amountsent, snapshot.data);
+    if (!isValid) {
+      throw new Error('Invalid vote amount: insufficient balance at snapshot time');
+    }
+
+    // Calculate vote weight
+    const voteWeight = calculateVoteWeight(amountsent);
+    
+    // Create the vote using candidate_votes table
+    const result = await prisma.candidate_votes.create({
+      data: {
+        candidate_id: Number(candidate_id),
+        toaddress,
+        amountsent: new Decimal(amountsent.toString()),
+        votescounted: voteWeight.votes,
+        validvote: true,
+        created: new Date(),
+        election_snapshot_id: election.snapshot
+      }
+    });
+
+    // Transform the result to match the ElectionVote interface
+    const electionVote: ElectionVote = {
+      id: result.id,
+      election_id,
+      candidate_id,
+      toaddress: result.toaddress!,
+      amountsent: result.amountsent!,
+      created: result.created!,
+      validvote: result.validvote!,
+      votescounted: result.votescounted!,
+      election_snapshot_id: result.election_snapshot_id ?? undefined
+    };
+
+    logger.debug({ 
+      id: result.id, 
+      votes: voteWeight.votes,
+      powerLevel: voteWeight.powerLevel 
+    }, 'Election vote created successfully');
+    
+    return electionVote;
+  } catch (error) {
+    logger.error({ error, vote }, 'Error creating election vote');
+    throw error;
   }
 };
   

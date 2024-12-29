@@ -16,12 +16,8 @@ import {
   getVotesForProposal,
   createProposalYesVote,
   getAllProposalYesVotes,
-  updateProposalYesVote,
-  deleteProposalYesVote,
   createProposalNoVote,
   getAllProposalNoVotes,
-  updateProposalNoVote,
-  deleteProposalNoVote,
   createProposalNomination,
   getAllProposalNominations,
   updateProposalNomination,
@@ -33,7 +29,10 @@ import {
   getAllProposalStatuses,
   createProposalStatus,
   updateProposalStatus,
-  deleteProposalStatus
+  deleteProposalStatus,
+  getNominationsForProposal,
+  countActiveProposals,
+  countNominationsForProposal
 } from '../models/proposalModels.js';
 import {
   Proposal,
@@ -43,10 +42,14 @@ import {
   ProposalNomination,
   ProposalType,
   ProposalStatus,
-  ProposalSnapshot
+  ProposalSnapshot,
+  ProposalWallet
 } from '../types/proposalTypes.js';
-import { proposalSubmissionFee } from '../utils/tokenCalcs.js';
+import { proposalSubmissionFee, proposalNominationFee } from '../utils/tokenCalcs.js';
 import { createKaspaWallet } from '../utils/walletUtils.js';
+import { calculateVoteWeight } from '../utils/voteCalculator.js';
+import { config, GOV_ADDRESS, YES_ADDRESS, NO_ADDRESS, GOV_TOKEN_TICKER } from '../config/env.js';
+import { getKRC20OperationList } from '../services/kasplexAPI.js';
 
 const logger = createModuleLogger('proposalController');
 
@@ -217,17 +220,19 @@ export const fetchProposalById = async (req: Request, res: Response, next: NextF
 // Proposal Votes
 export const submitProposalVote = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { proposal_id, toaddress, amountsent, isYesVote } = req.body;
-    logger.info({ proposal_id, toaddress, amountsent, isYesVote }, 'Submitting proposal vote');
+    const { proposal_id, toaddress, amountsent } = req.body;
+    logger.info({ proposal_id, toaddress, amountsent }, 'Submitting proposal vote');
+    
+    // Calculate vote weight
+    const voteWeight = calculateVoteWeight(amountsent);
     
     const newVote = await createProposalVote({
       proposal_id,
       toaddress,
       amountsent: new Decimal(amountsent.toString()),
-      votescounted: null,
+      votescounted: voteWeight.votes,
       validvote: true,
-      proposal_snapshot_id: null,
-      isYesVote
+      proposal_snapshot_id: undefined  // Let the database handle the default value
     });
 
     logger.info({ voteId: newVote.id }, 'Vote submitted successfully');
@@ -258,152 +263,74 @@ export const fetchVotesForProposal = async (req: Request, res: Response): Promis
 };
 
 // Proposal Yes Votes
-export const fetchAllProposalYesVotes = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const fetchAllProposalYesVotes = async (req: Request, res: Response): Promise<void> => {
   try {
     logger.info('Fetching all proposal yes votes');
     const votes = await getAllProposalYesVotes();
-    logger.debug({ voteCount: votes.length }, 'Yes votes retrieved successfully');
     res.status(200).json(votes);
   } catch (error) {
     logger.error({ error }, 'Error fetching proposal yes votes');
-    next(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-export const submitProposalYesVote = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const submitProposalYesVote = async (req: Request, res: Response): Promise<void> => {
   try {
     const { proposal_id, toaddress, amountsent } = req.body;
     logger.info({ proposal_id, toaddress, amountsent }, 'Submitting proposal yes vote');
+    
+    // Calculate vote weight
+    const voteWeight = calculateVoteWeight(amountsent);
     
     const newVote = await createProposalYesVote({
       proposal_id,
       toaddress,
       amountsent: new Decimal(amountsent.toString()),
-      votescounted: null,
-      validvote: true,
-      proposal_snapshot_id: null
+      votescounted: voteWeight.votes,
+      validvote: true
     });
 
     logger.info({ voteId: newVote.id }, 'Yes vote submitted successfully');
     res.status(201).json(newVote);
   } catch (error) {
     logger.error({ error, vote: req.body }, 'Error submitting yes vote');
-    next(error);
-  }
-};
-
-export const modifyProposalYesVote = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
-      logger.warn({ voteId: req.params.id }, 'Invalid vote ID format');
-      res.status(400).json({ error: 'Invalid vote ID' });
-      return;
-    }
-
-    const voteData: Partial<ProposalYesVote> = req.body;
-    logger.info({ voteId: id, updates: voteData }, 'Modifying yes vote');
-    
-    const updatedVote = await updateProposalYesVote(id, voteData);
-    logger.info({ voteId: id }, 'Yes vote updated successfully');
-    res.status(200).json(updatedVote);
-  } catch (error) {
-    logger.error({ error, voteId: req.params.id }, 'Error modifying yes vote');
-    next(error);
-  }
-};
-
-export const removeProposalYesVote = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
-      logger.warn({ voteId: req.params.id }, 'Invalid vote ID format');
-      res.status(400).json({ error: 'Invalid vote ID' });
-      return;
-    }
-
-    logger.info({ voteId: id }, 'Removing yes vote');
-    await deleteProposalYesVote(id);
-    logger.info({ voteId: id }, 'Yes vote deleted successfully');
-    res.status(204).send();
-  } catch (error) {
-    logger.error({ error, voteId: req.params.id }, 'Error removing yes vote');
-    next(error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
   }
 };
 
 // Proposal No Votes
-export const fetchAllProposalNoVotes = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const fetchAllProposalNoVotes = async (req: Request, res: Response): Promise<void> => {
   try {
     logger.info('Fetching all proposal no votes');
     const votes = await getAllProposalNoVotes();
-    logger.debug({ voteCount: votes.length }, 'No votes retrieved successfully');
     res.status(200).json(votes);
   } catch (error) {
     logger.error({ error }, 'Error fetching proposal no votes');
-    next(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-export const submitProposalNoVote = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const submitProposalNoVote = async (req: Request, res: Response): Promise<void> => {
   try {
     const { proposal_id, toaddress, amountsent } = req.body;
     logger.info({ proposal_id, toaddress, amountsent }, 'Submitting proposal no vote');
+    
+    // Calculate vote weight
+    const voteWeight = calculateVoteWeight(amountsent);
     
     const newVote = await createProposalNoVote({
       proposal_id,
       toaddress,
       amountsent: new Decimal(amountsent.toString()),
-      votescounted: null,
-      validvote: true,
-      proposal_snapshot_id: null
+      votescounted: voteWeight.votes,
+      validvote: true
     });
 
     logger.info({ voteId: newVote.id }, 'No vote submitted successfully');
     res.status(201).json(newVote);
   } catch (error) {
     logger.error({ error, vote: req.body }, 'Error submitting no vote');
-    next(error);
-  }
-};
-
-export const modifyProposalNoVote = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
-      logger.warn({ voteId: req.params.id }, 'Invalid vote ID format');
-      res.status(400).json({ error: 'Invalid vote ID' });
-      return;
-    }
-
-    const voteData: Partial<ProposalNoVote> = req.body;
-    logger.info({ voteId: id, updates: voteData }, 'Modifying no vote');
-    
-    const updatedVote = await updateProposalNoVote(id, voteData);
-    logger.info({ voteId: id }, 'No vote updated successfully');
-    res.status(200).json(updatedVote);
-  } catch (error) {
-    logger.error({ error, voteId: req.params.id }, 'Error modifying no vote');
-    next(error);
-  }
-};
-
-export const removeProposalNoVote = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
-      logger.warn({ voteId: req.params.id }, 'Invalid vote ID format');
-      res.status(400).json({ error: 'Invalid vote ID' });
-      return;
-    }
-
-    logger.info({ voteId: id }, 'Removing no vote');
-    await deleteProposalNoVote(id);
-    logger.info({ voteId: id }, 'No vote deleted successfully');
-    res.status(204).send();
-  } catch (error) {
-    logger.error({ error, voteId: req.params.id }, 'Error removing no vote');
-    next(error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
   }
 };
 
@@ -759,6 +686,180 @@ export const removeProposalSnapshot = async (req: Request, res: Response, next: 
     res.status(204).send();
   } catch (error) {
     logger.error({ error, snapshotId: req.params.id }, 'Error removing proposal snapshot');
+    next(error);
+  }
+};
+
+export const fetchNominationsForProposal = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const proposalId = parseInt(req.params.proposalId, 10);
+    if (isNaN(proposalId)) {
+      logger.warn({ proposalId: req.params.proposalId }, 'Invalid proposal ID format');
+      res.status(400).json({ error: 'Invalid proposal ID' });
+      return;
+    }
+
+    logger.info({ proposalId }, 'Fetching nominations for proposal');
+    const nominations = await getNominationsForProposal(proposalId);
+    logger.debug({ proposalId, count: nominations.length }, 'Nominations retrieved successfully');
+    res.status(200).json(nominations);
+  } catch (error) {
+    logger.error({ error, proposalId: req.params.proposalId }, 'Error fetching nominations');
+    next(error);
+  }
+};
+
+export const fetchActiveProposalCount = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    logger.info('Fetching active proposal count');
+    const count = await countActiveProposals();
+    logger.debug({ count }, 'Active proposal count retrieved successfully');
+    res.status(200).json(count);
+  } catch (error) {
+    logger.error({ error }, 'Error fetching active proposal count');
+    next(error);
+  }
+};
+
+export const fetchNominationCount = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const proposalId = parseInt(req.params.proposalId, 10);
+    if (isNaN(proposalId)) {
+      logger.warn({ proposalId: req.params.proposalId }, 'Invalid proposal ID format');
+      res.status(400).json({ error: 'Invalid proposal ID' });
+      return;
+    }
+
+    logger.info({ proposalId }, 'Fetching nomination count for proposal');
+    const count = await countNominationsForProposal(proposalId);
+    logger.debug({ proposalId, count }, 'Nomination count retrieved successfully');
+    res.status(200).json({ nominationCount: count });
+  } catch (error) {
+    logger.error({ error, proposalId: req.params.proposalId }, 'Error fetching nomination count');
+    if (error instanceof Error && error.message === 'Proposal not found') {
+      res.status(404).json({ error: 'Proposal not found' });
+      return;
+    }
+    next(error);
+  }
+};
+
+// Config endpoint
+export const getGovConfig = async (req: Request, res: Response): Promise<void> => {
+  try {
+    logger.info('Fetching governance configuration');
+    const govConfig = {
+      govTokenTicker: config.tokens.govTokenTicker,
+      proposals: {
+        submissionFeeUsd: config.proposals.submissionFeeUsd,
+        nominationFeeUsd: config.proposals.nominationFeeUsd,
+        votingFeeMin: config.proposals.votingFeeMin,
+        votingFeeMax: config.proposals.votingFeeMax
+      },
+      candidates: {
+        nominationFeeUsd: config.candidates.nominationFeeUsd
+      },
+      addresses: {
+        gov: GOV_ADDRESS,
+        yes: YES_ADDRESS,
+        no: NO_ADDRESS
+      }
+    };
+    
+    res.status(200).json(govConfig);
+  } catch (error) {
+    logger.error({ error }, 'Error fetching governance configuration');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Nomination Fee Functions
+export const getNominationFee = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    logger.info('Fetching nomination fee');
+    const fee = await proposalNominationFee();
+    logger.debug({ fee }, 'Nomination fee retrieved successfully');
+    res.status(200).json({ fee });
+  } catch (error) {
+    logger.error({ error }, 'Error fetching nomination fee');
+    next(error);
+  }
+};
+
+export const verifyNominationTransaction = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { fee, proposalId } = req.body;
+    logger.info({ proposalId, fee }, 'Verifying nomination transaction');
+
+    const proposal = await getProposalById(proposalId);
+    if (!proposal || !proposal.wallet) {
+      logger.warn({ proposalId }, 'Proposal or wallet not found');
+      res.status(404).json({ error: 'Proposal or wallet not found' });
+      return;
+    }
+
+    const wallet = proposal.wallet as unknown as ProposalWallet;
+    if (!wallet.address) {
+      logger.warn({ proposalId }, 'Wallet address not found');
+      res.status(404).json({ error: 'Wallet address not found' });
+      return;
+    }
+
+    const walletAddress = wallet.address;
+    const targetAmount = fee * 100000000;
+    logger.debug({ walletAddress, targetAmount }, 'Checking for transaction');
+
+    const checkTransaction = async (): Promise<string | null> => {
+      if (!GOV_TOKEN_TICKER) {
+        logger.error('GOV_TOKEN_TICKER not configured');
+        throw new Error('GOV_TOKEN_TICKER not configured');
+      }
+
+      const operations = await getKRC20OperationList({ address: walletAddress, tick: GOV_TOKEN_TICKER });
+      for (const operation of operations) {
+        if (operation.to === walletAddress && operation.amt === targetAmount && operation.tick === GOV_TOKEN_TICKER) {
+          logger.debug({ hashRev: operation.hashRev }, 'Found matching transaction');
+          return operation.hashRev;
+        }
+      }
+      return null;
+    };
+
+    const startTime = Date.now();
+    const interval = setInterval(async () => {
+      if (Date.now() - startTime > 90000) {
+        clearInterval(interval);
+        logger.warn({ proposalId }, 'Transaction verification timed out');
+        res.status(408).json({ error: 'Transaction not found within the time limit' });
+        return;
+      }
+
+      try {
+        const hashRev = await checkTransaction();
+        if (hashRev) {
+          clearInterval(interval);
+          logger.info({ proposalId, hashRev }, 'Creating nomination record');
+          
+          const nomination = await createProposalNomination({
+            proposal_id: proposalId,
+            toaddress: walletAddress,
+            amountsent: new Decimal(fee.toString()),
+            hash: hashRev,
+            created: new Date(),
+            validvote: true
+          });
+          
+          logger.info({ nominationId: nomination.id, proposalId }, 'Nomination created successfully');
+          res.status(201).json({ id: nomination.id, message: 'Nomination successful' });
+        }
+      } catch (error) {
+        clearInterval(interval);
+        logger.error({ error, proposalId }, 'Error during transaction check');
+        res.status(500).json({ error: 'Error during transaction verification' });
+      }
+    }, 3000);
+  } catch (error) {
+    logger.error({ error, proposalId: req.body.proposalId }, 'Error verifying nomination transaction');
     next(error);
   }
 }; 

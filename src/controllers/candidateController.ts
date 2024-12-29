@@ -13,10 +13,28 @@ import {
   updateCandidateNomination,
   deleteCandidateNomination
 } from '../models/candidateModels.js';
-import { CandidateVote } from '../types/electionTypes.js';
-import { CandidateNomination, CandidateWallet } from '../types/candidateTypes.js';
+import {
+  CandidateVote,
+  CandidateNomination,
+  CandidateWallet,
+  CandidateNominationFeeResponse
+} from '../types/candidateTypes.js';
+import { config } from '../config/env.js';
 
 const logger = createModuleLogger('candidateController');
+
+// Nomination Fee
+export const getCandidateNominationFee = async (req: Request, res: Response): Promise<void> => {
+  try {
+    logger.info('Fetching candidate nomination fee');
+    const nominationFee = config.candidates.nominationFeeUsd;
+    logger.debug({ nominationFee }, 'Nomination fee retrieved successfully');
+    res.status(200).json({ nominationFeeUsd: nominationFee });
+  } catch (error) {
+    logger.error({ error }, 'Error fetching candidate nomination fee');
+    res.status(500).json({ error: 'Failed to fetch nomination fee' });
+  }
+};
 
 // Candidate Votes
 export const submitCandidateVote = async (req: Request, res: Response, next: NextFunction): Promise<void> => {

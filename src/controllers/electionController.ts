@@ -20,7 +20,8 @@ import {
   getAllElectionTypes,
   createElectionType,
   updateElectionType,
-  deleteElectionType
+  deleteElectionType,
+  countActiveElections
 } from '../models/electionModels.js';
 import {
   Election,
@@ -383,4 +384,16 @@ export const removeElectionType = async (req: Request, res: Response, next: Next
 };
 
 export const submitElectionVote = undefined;
-export const fetchAllElectionVotes = undefined; 
+export const fetchAllElectionVotes = undefined;
+
+export const fetchActiveElectionCount = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    logger.info('Fetching active election count');
+    const count = await countActiveElections();
+    logger.debug({ count }, 'Active election count retrieved successfully');
+    res.status(200).json(count);
+  } catch (error) {
+    logger.error({ error }, 'Error fetching active election count');
+    next(error);
+  }
+}; 

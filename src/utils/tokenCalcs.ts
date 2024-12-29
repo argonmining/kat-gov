@@ -6,7 +6,12 @@ const logger = createModuleLogger('tokenCalcs');
 
 /**
  * Calculate the quantity of tokens needed for proposal submission.
- * @returns The quantity of tokens required.
+ * Converts the configured USD fee to token amount based on current token price.
+ * Applies a random multiplier between 0.95 and 1.10 to prevent front-running.
+ * 
+ * @throws {Error} If GOV_TOKEN_TICKER is not configured
+ * @throws {Error} If token price is zero
+ * @returns {Promise<number>} The quantity of tokens required, with 8 decimal places precision
  */
 export async function proposalSubmissionFee(): Promise<number> {
   try {
@@ -48,7 +53,12 @@ export async function proposalSubmissionFee(): Promise<number> {
 
 /**
  * Calculate the quantity of tokens needed for proposal nomination.
- * @returns The quantity of tokens required.
+ * Converts the configured USD fee to token amount based on current token price.
+ * Applies a random multiplier between 0.95 and 1.10 to prevent front-running.
+ * 
+ * @throws {Error} If GOV_TOKEN_TICKER is not configured
+ * @throws {Error} If token price is zero
+ * @returns {Promise<number>} The quantity of tokens required, with 8 decimal places precision
  */
 export async function proposalNominationFee(): Promise<number> {
   try {
@@ -90,7 +100,12 @@ export async function proposalNominationFee(): Promise<number> {
 
 /**
  * Calculate the quantity of tokens needed for candidate nomination.
- * @returns The quantity of tokens required.
+ * Converts the configured USD fee to token amount based on current token price.
+ * Applies a random multiplier between 0.95 and 1.10 to prevent front-running.
+ * 
+ * @throws {Error} If GOV_TOKEN_TICKER is not configured
+ * @throws {Error} If token price is zero
+ * @returns {Promise<number>} The quantity of tokens required, with 8 decimal places precision
  */
 export async function candidateNominationFee(): Promise<number> {
   try {
@@ -130,20 +145,32 @@ export async function candidateNominationFee(): Promise<number> {
 }
 
 /**
- * Calculate the proposal vote fee.
- * @param amount - The decimal number representing the amount.
- * @returns An object containing the calculated votes and the original amount.
+ * Calculate the voting power (number of votes) based on the amount of tokens provided.
+ * The voting power scales linearly between the minimum and maximum fee thresholds.
+ * Amounts above the maximum fee threshold are accepted but capped at the maximum voting power.
+ * 
+ * @param {number} amount - The amount of tokens being used to vote
+ * @returns {{ votes: number, amount: number }} Object containing:
+ *   - votes: The calculated voting power (capped at maximumVotes)
+ *   - amount: The original amount provided
+ * @throws {Error} If amount is less than or equal to the minimum voting fee
+ * 
+ * @example
+ * // Calculate votes for 1000 tokens
+ * const result = proposalVoteFee(1000);
+ * console.log(result.votes); // Number of votes granted
+ * console.log(result.amount); // Original 1000 tokens
  */
 export function proposalVoteFee(amount: number): { votes: number, amount: number } {
   try {
     logger.info({ amount }, 'Calculating proposal vote fee');
     const proposalVotingFeeMin = config.proposals.votingFeeMin;
-    const proposalVotingFeeMultiplier = config.proposals.votingFeeMultiplier;
+    const proposalVotingFeeMax = config.proposals.votingFeeMax;
     const proposalMaximumVotes = config.proposals.maximumVotes;
 
     logger.debug({
       proposalVotingFeeMin,
-      proposalVotingFeeMultiplier,
+      proposalVotingFeeMax,
       proposalMaximumVotes
     }, 'Vote fee parameters');
 
@@ -153,10 +180,16 @@ export function proposalVoteFee(amount: number): { votes: number, amount: number
       throw error;
     }
 
-    const calculatedVotes = amount * proposalVotingFeeMultiplier;
+    // Calculate votes based on amount, scaling linearly between min and max
+    const effectiveAmount = Math.min(amount, proposalVotingFeeMax);
+    const votingRange = proposalVotingFeeMax - proposalVotingFeeMin;
+    const amountAboveMin = effectiveAmount - proposalVotingFeeMin;
+    const votingRatio = amountAboveMin / votingRange;
+    const calculatedVotes = Math.floor(proposalMaximumVotes * votingRatio);
     const votes = Math.min(calculatedVotes, proposalMaximumVotes);
 
     logger.info({ 
+      effectiveAmount,
       calculatedVotes,
       votes,
       amount 

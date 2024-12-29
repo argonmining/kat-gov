@@ -1,24 +1,10 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { createModuleLogger } from '../utils/logger.js';
 import { burnKRC20, burnKaspa, dropKasGas, returnGovKaspa, burnYesWallet, burnNoWallet } from '../services/burnService.js';
 
-const logger = createModuleLogger('burnRoutes');
-const router = Router();
+const logger = createModuleLogger('burnController');
 
-// Middleware to log route access
-const logRoute = (req: Request, res: Response, next: NextFunction) => {
-  logger.info({
-    method: req.method,
-    path: req.path,
-    query: req.query,
-    params: req.params,
-  }, 'Route accessed');
-  next();
-};
-
-router.use(logRoute);
-
-router.post('/burnkrc20', async (req: Request, res: Response, next: NextFunction) => {
+export const burnKrc20Tokens = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { walletId, amount } = req.body;
     logger.info({ walletId, amount }, 'Burning KRC20 tokens');
@@ -29,9 +15,9 @@ router.post('/burnkrc20', async (req: Request, res: Response, next: NextFunction
     logger.error({ error }, 'Error burning KRC20 tokens');
     next(error);
   }
-});
+};
 
-router.post('/burnkaspa', async (req: Request, res: Response, next: NextFunction) => {
+export const burnKaspaTokens = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { walletId, amount } = req.body;
     logger.info({ walletId, amount }, 'Burning KASPA');
@@ -42,9 +28,9 @@ router.post('/burnkaspa', async (req: Request, res: Response, next: NextFunction
     logger.error({ error }, 'Error burning KASPA');
     next(error);
   }
-});
+};
 
-router.post('/returnkaspa', async (req: Request, res: Response, next: NextFunction) => {
+export const returnGovKaspaTokens = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { walletId } = req.body;
     logger.info({ walletId }, 'Returning GOV KASPA');
@@ -55,9 +41,9 @@ router.post('/returnkaspa', async (req: Request, res: Response, next: NextFuncti
     logger.error({ error }, 'Error returning GOV KASPA');
     next(error);
   }
-});
+};
 
-router.post('/dropkasgas', async (req: Request, res: Response, next: NextFunction) => {
+export const dropKasGasTokens = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { walletId } = req.body;
     logger.info({ walletId }, 'Dropping KasGas');
@@ -68,9 +54,9 @@ router.post('/dropkasgas', async (req: Request, res: Response, next: NextFunctio
     logger.error({ error }, 'Error dropping KasGas');
     next(error);
   }
-});
+};
 
-router.post('/burnyeswallet', async (req: Request, res: Response, next: NextFunction) => {
+export const burnYesWalletTokens = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     logger.info('Burning Yes Wallet');
     const hash = await burnYesWallet();
@@ -80,9 +66,9 @@ router.post('/burnyeswallet', async (req: Request, res: Response, next: NextFunc
     logger.error({ error }, 'Error burning Yes Wallet');
     next(error);
   }
-});
+};
 
-router.post('/burnnowallet', async (req: Request, res: Response, next: NextFunction) => {
+export const burnNoWalletTokens = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     logger.info('Burning No Wallet');
     const hash = await burnNoWallet();
@@ -92,6 +78,4 @@ router.post('/burnnowallet', async (req: Request, res: Response, next: NextFunct
     logger.error({ error }, 'Error burning No Wallet');
     next(error);
   }
-});
-
-export default router; 
+}; 

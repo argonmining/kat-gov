@@ -1,12 +1,9 @@
 import { Mnemonic, XPrv } from '../wasm/kaspa/kaspa.js';
 import { encryptPrivateKey } from './encryptionUtils.js';
 import { createModuleLogger } from './logger.js';
-import dotenv from 'dotenv';
-import process from 'process';
+import { config } from '../config/env.js';
 
 const logger = createModuleLogger('walletUtils');
-const envFile = process.env.NODE_ENV === 'katgov' ? '.env.katgov' : '.env.kdao';
-dotenv.config({ path: envFile });
 
 interface WalletDetails {
   mnemonic: string;
@@ -16,7 +13,7 @@ interface WalletDetails {
 
 export async function createKaspaWallet(): Promise<WalletDetails> {
   try {
-    const network = process.env.KASPA_NETWORK || 'testnet-10';
+    const network = config.kaspa.network;
     logger.info({ network }, 'Creating new Kaspa wallet');
     
     const mnemonic = Mnemonic.random();

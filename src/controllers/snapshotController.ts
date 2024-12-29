@@ -3,19 +3,19 @@ import { createModuleLogger } from '../utils/logger.js';
 import {
   getAllProposalSnapshots,
   createProposalSnapshot,
-  updateProposalSnapshot,
-  deleteProposalSnapshot
+  getProposalById
 } from '../models/proposalModels.js';
 import {
   getAllElectionSnapshots,
   createElectionSnapshot,
-  updateElectionSnapshot,
-  deleteElectionSnapshot
+  getElectionById
 } from '../models/electionModels.js';
+import { fetchTokenSnapshot } from '../services/snapshotService.js';
+import { CreateSnapshotRequest } from '../types/snapshotTypes.js';
 
 const logger = createModuleLogger('snapshotController');
 
-export const fetchAllProposalSnapshots = async (req: Request, res: Response, next: NextFunction) => {
+export const fetchAllProposalSnapshots = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     logger.info('Fetching all proposal snapshots');
     const snapshots = await getAllProposalSnapshots();
@@ -27,61 +27,7 @@ export const fetchAllProposalSnapshots = async (req: Request, res: Response, nex
   }
 };
 
-export const addProposalSnapshot = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { proposalId, snapshotData } = req.body;
-    logger.info({ proposalId }, 'Adding proposal snapshot');
-    
-    const newSnapshot = await createProposalSnapshot(proposalId, snapshotData);
-    logger.info({ snapshotId: newSnapshot.id, proposalId }, 'Proposal snapshot created successfully');
-    res.status(201).json(newSnapshot);
-  } catch (error) {
-    logger.error({ error, proposalId: req.body.proposalId }, 'Error adding proposal snapshot');
-    next(error);
-  }
-};
-
-export const modifyProposalSnapshot = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
-      logger.warn({ snapshotId: req.params.id }, 'Invalid snapshot ID format');
-      res.status(400).json({ error: 'Invalid snapshot ID' });
-      return;
-    }
-
-    const { snapshotData } = req.body;
-    logger.info({ snapshotId: id }, 'Modifying proposal snapshot');
-    
-    const updatedSnapshot = await updateProposalSnapshot(id, snapshotData);
-    logger.info({ snapshotId: id }, 'Proposal snapshot updated successfully');
-    res.status(200).json(updatedSnapshot);
-  } catch (error) {
-    logger.error({ error, snapshotId: req.params.id }, 'Error modifying proposal snapshot');
-    next(error);
-  }
-};
-
-export const removeProposalSnapshot = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
-      logger.warn({ snapshotId: req.params.id }, 'Invalid snapshot ID format');
-      res.status(400).json({ error: 'Invalid snapshot ID' });
-      return;
-    }
-
-    logger.info({ snapshotId: id }, 'Removing proposal snapshot');
-    await deleteProposalSnapshot(id);
-    logger.info({ snapshotId: id }, 'Proposal snapshot deleted successfully');
-    res.status(204).send();
-  } catch (error) {
-    logger.error({ error, snapshotId: req.params.id }, 'Error removing proposal snapshot');
-    next(error);
-  }
-};
-
-export const fetchAllElectionSnapshots = async (req: Request, res: Response, next: NextFunction) => {
+export const fetchAllElectionSnapshots = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     logger.info('Fetching all election snapshots');
     const snapshots = await getAllElectionSnapshots();
@@ -93,56 +39,61 @@ export const fetchAllElectionSnapshots = async (req: Request, res: Response, nex
   }
 };
 
-export const addElectionSnapshot = async (req: Request, res: Response, next: NextFunction) => {
+export const createNewSnapshot = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { electionId, snapshotData } = req.body;
-    logger.info({ electionId }, 'Adding election snapshot');
+    const { entityType, entityId } = req.body as CreateSnapshotRequest;
     
-    const newSnapshot = await createElectionSnapshot(electionId, snapshotData);
-    logger.info({ snapshotId: newSnapshot.id, electionId }, 'Election snapshot created successfully');
-    res.status(201).json(newSnapshot);
-  } catch (error) {
-    logger.error({ error, electionId: req.body.electionId }, 'Error adding election snapshot');
-    next(error);
-  }
-};
-
-export const modifyElectionSnapshot = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
-      logger.warn({ snapshotId: req.params.id }, 'Invalid snapshot ID format');
-      res.status(400).json({ error: 'Invalid snapshot ID' });
+    if (!entityType || !entityId) {
+      logger.warn({ body: req.body }, 'Missing required fields for snapshot creation');
+      res.status(400).json({ error: 'Missing required fields: entityType and entityId' });
       return;
     }
 
-    const { snapshotData } = req.body;
-    logger.info({ snapshotId: id }, 'Modifying election snapshot');
-    
-    const updatedSnapshot = await updateElectionSnapshot(id, snapshotData);
-    logger.info({ snapshotId: id }, 'Election snapshot updated successfully');
-    res.status(200).json(updatedSnapshot);
-  } catch (error) {
-    logger.error({ error, snapshotId: req.params.id }, 'Error modifying election snapshot');
-    next(error);
-  }
-};
-
-export const removeElectionSnapshot = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
-      logger.warn({ snapshotId: req.params.id }, 'Invalid snapshot ID format');
-      res.status(400).json({ error: 'Invalid snapshot ID' });
+    // Validate that the entity exists
+    if (entityType === 'proposal') {
+      const proposal = await getProposalById(entityId);
+      if (!proposal) {
+        logger.warn({ proposalId: entityId }, 'Proposal not found');
+        res.status(404).json({ error: 'Proposal not found' });
+        return;
+      }
+    } else if (entityType === 'election') {
+      const election = await getElectionById(entityId);
+      if (!election) {
+        logger.warn({ electionId: entityId }, 'Election not found');
+        res.status(404).json({ error: 'Election not found' });
+        return;
+      }
+    } else {
+      logger.warn({ entityType }, 'Invalid entity type');
+      res.status(400).json({ error: 'Invalid entity type' });
       return;
     }
 
-    logger.info({ snapshotId: id }, 'Removing election snapshot');
-    await deleteElectionSnapshot(id);
-    logger.info({ snapshotId: id }, 'Election snapshot deleted successfully');
-    res.status(204).send();
+    logger.info({ entityType, entityId }, 'Creating new snapshot');
+    
+    // Fetch the snapshot data from Kasplex
+    const snapshotData = await fetchTokenSnapshot();
+    
+    // Create the snapshot in our database based on entity type
+    let snapshot;
+    if (entityType === 'proposal') {
+      snapshot = await createProposalSnapshot(entityId, snapshotData);
+    } else {
+      snapshot = await createElectionSnapshot(entityId, snapshotData);
+    }
+
+    logger.info({ 
+      entityType, 
+      entityId, 
+      snapshotId: snapshot.id,
+      timestamp: snapshotData.timestamp,
+      holdersCount: snapshotData.holders.length
+    }, 'Snapshot created successfully');
+
+    res.status(201).json(snapshot);
   } catch (error) {
-    logger.error({ error, snapshotId: req.params.id }, 'Error removing election snapshot');
+    logger.error({ error, body: req.body }, 'Error creating snapshot');
     next(error);
   }
 };

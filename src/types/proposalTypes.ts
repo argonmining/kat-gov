@@ -59,13 +59,12 @@ export interface ProposalVote {
   id: number;
   created?: Date;
   hash?: string;
-  toaddress?: string;
-  amountsent?: Decimal;
-  votescounted?: number | null;
-  validvote?: boolean;
-  proposal_id?: number;
-  proposal_snapshot_id?: number | null;
-  isYesVote?: boolean;
+  toaddress: string;
+  amountsent: Decimal;
+  votescounted: number;
+  validvote: boolean;
+  proposal_id: number;
+  proposal_snapshot_id?: number;
 }
 
 export interface ProposalYesVote extends ProposalVote {

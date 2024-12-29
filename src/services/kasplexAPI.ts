@@ -42,9 +42,13 @@ export async function getKRC20Balance(address: string, tick: string): Promise<an
 
 /**
  * Get the list of KRC-20 operations.
+ * @param params - Parameters for the operation list query
+ * @param params.address - The address to get operations for
+ * @param params.tick - Optional token symbol to filter by
+ * @param params.next - Optional cursor for pagination
  * @returns The list of operations.
  */
-export async function getKRC20OperationList(params: { address: string, tick: string }): Promise<any> {
+export async function getKRC20OperationList(params: { address: string; tick?: string; next?: string }): Promise<any> {
   try {
     logger.info(params, 'Fetching KRC20 operation list');
     return await apiFetch('/oplist', { params });

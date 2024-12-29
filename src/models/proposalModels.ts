@@ -11,6 +11,7 @@ import {
   ProposalStatus,
   ProposalWallet
 } from '../types/proposalTypes.js';
+import { calculateVoteWeight, validateVoteAmount } from '../utils/voteCalculator.js';
 
 const logger = createModuleLogger('proposalModels');
 
@@ -352,15 +353,44 @@ export const getAllProposalYesVotes = async (): Promise<ProposalYesVote[]> => {
 
 export const createProposalYesVote = async (vote: Omit<ProposalYesVote, 'id' | 'created'>): Promise<ProposalYesVote> => {
   try {
-    const { proposal_id, toaddress, amountsent, votescounted, validvote } = vote;
+    const { proposal_id, toaddress, amountsent } = vote;
+    if (!proposal_id || !toaddress || !amountsent) {
+      throw new Error('Missing required fields for vote');
+    }
+
     logger.info({ proposal_id, toaddress, amountsent }, 'Creating proposal yes vote');
+
+    // Get proposal and its snapshot
+    const proposal = await getProposalById(proposal_id);
+    if (!proposal || !proposal.snapshot) {
+      throw new Error('Proposal or snapshot not found');
+    }
+
+    const snapshot = await prisma.proposal_snapshots.findUnique({
+      where: { id: Number(proposal.snapshot) }
+    });
+
+    if (!snapshot || !snapshot.data) {
+      throw new Error('Snapshot data not found');
+    }
+
+    // Validate amount against snapshot
+    const isValid = await validateVoteAmount(toaddress, amountsent, snapshot.data);
+    if (!isValid) {
+      throw new Error('Invalid vote amount: insufficient balance at snapshot time');
+    }
+
+    // Calculate vote weight
+    const voteWeight = calculateVoteWeight(amountsent);
+    
     const result = await prisma.proposal_yes_votes.create({
       data: {
         proposal_id,
         toaddress,
         amountsent,
-        votescounted,
-        validvote,
+        votescounted: voteWeight.votes,
+        validvote: true,
+        proposal_snapshot_id: Number(proposal.snapshot),
         created: new Date()
       },
       include: {
@@ -368,43 +398,17 @@ export const createProposalYesVote = async (vote: Omit<ProposalYesVote, 'id' | '
         proposal_snapshots: true
       }
     });
-    logger.debug({ id: result.id }, 'Proposal yes vote created successfully');
+
+    logger.debug({ 
+      id: result.id, 
+      votes: voteWeight.votes,
+      powerLevel: voteWeight.powerLevel 
+    }, 'Proposal yes vote created successfully');
+    
     return result as unknown as ProposalYesVote;
   } catch (error) {
     logger.error({ error, vote }, 'Error creating proposal yes vote');
-    throw new Error('Could not create proposal yes vote');
-  }
-};
-
-export const updateProposalYesVote = async (id: number, vote: Partial<ProposalYesVote>): Promise<ProposalYesVote> => {
-  try {
-    logger.info({ id, ...vote }, 'Updating proposal yes vote');
-    const result = await prisma.proposal_yes_votes.update({
-      where: { id },
-      data: vote,
-      include: {
-        proposals_proposal_yes_votes_proposal_idToproposals: true,
-        proposal_snapshots: true
-      }
-    });
-    logger.debug({ id }, 'Proposal yes vote updated successfully');
-    return result as unknown as ProposalYesVote;
-  } catch (error) {
-    logger.error({ error, id, vote }, 'Error updating proposal yes vote');
-    throw new Error('Could not update proposal yes vote');
-  }
-};
-
-export const deleteProposalYesVote = async (id: number): Promise<void> => {
-  try {
-    logger.info({ id }, 'Deleting proposal yes vote');
-    await prisma.proposal_yes_votes.delete({
-      where: { id }
-    });
-    logger.debug({ id }, 'Proposal yes vote deleted successfully');
-  } catch (error) {
-    logger.error({ error, id }, 'Error deleting proposal yes vote');
-    throw new Error('Could not delete proposal yes vote');
+    throw error;
   }
 };
 
@@ -428,15 +432,44 @@ export const getAllProposalNoVotes = async (): Promise<ProposalNoVote[]> => {
 
 export const createProposalNoVote = async (vote: Omit<ProposalNoVote, 'id' | 'created'>): Promise<ProposalNoVote> => {
   try {
-    const { proposal_id, toaddress, amountsent, votescounted, validvote } = vote;
+    const { proposal_id, toaddress, amountsent } = vote;
+    if (!proposal_id || !toaddress || !amountsent) {
+      throw new Error('Missing required fields for vote');
+    }
+
     logger.info({ proposal_id, toaddress, amountsent }, 'Creating proposal no vote');
+
+    // Get proposal and its snapshot
+    const proposal = await getProposalById(proposal_id);
+    if (!proposal || !proposal.snapshot) {
+      throw new Error('Proposal or snapshot not found');
+    }
+
+    const snapshot = await prisma.proposal_snapshots.findUnique({
+      where: { id: Number(proposal.snapshot) }
+    });
+
+    if (!snapshot || !snapshot.data) {
+      throw new Error('Snapshot data not found');
+    }
+
+    // Validate amount against snapshot
+    const isValid = await validateVoteAmount(toaddress, amountsent, snapshot.data);
+    if (!isValid) {
+      throw new Error('Invalid vote amount: insufficient balance at snapshot time');
+    }
+
+    // Calculate vote weight
+    const voteWeight = calculateVoteWeight(amountsent);
+    
     const result = await prisma.proposal_no_votes.create({
       data: {
         proposal_id,
         toaddress,
         amountsent,
-        votescounted,
-        validvote,
+        votescounted: voteWeight.votes,
+        validvote: true,
+        proposal_snapshot_id: Number(proposal.snapshot),
         created: new Date()
       },
       include: {
@@ -444,43 +477,17 @@ export const createProposalNoVote = async (vote: Omit<ProposalNoVote, 'id' | 'cr
         proposal_snapshots: true
       }
     });
-    logger.debug({ id: result.id }, 'Proposal no vote created successfully');
+
+    logger.debug({ 
+      id: result.id, 
+      votes: voteWeight.votes,
+      powerLevel: voteWeight.powerLevel 
+    }, 'Proposal no vote created successfully');
+    
     return result as unknown as ProposalNoVote;
   } catch (error) {
     logger.error({ error, vote }, 'Error creating proposal no vote');
-    throw new Error('Could not create proposal no vote');
-  }
-};
-
-export const updateProposalNoVote = async (id: number, vote: Partial<ProposalNoVote>): Promise<ProposalNoVote> => {
-  try {
-    logger.info({ id, ...vote }, 'Updating proposal no vote');
-    const result = await prisma.proposal_no_votes.update({
-      where: { id },
-      data: vote,
-      include: {
-        proposals_proposal_no_votes_proposal_idToproposals: true,
-        proposal_snapshots: true
-      }
-    });
-    logger.debug({ id }, 'Proposal no vote updated successfully');
-    return result as unknown as ProposalNoVote;
-  } catch (error) {
-    logger.error({ error, id, vote }, 'Error updating proposal no vote');
-    throw new Error('Could not update proposal no vote');
-  }
-};
-
-export const deleteProposalNoVote = async (id: number): Promise<void> => {
-  try {
-    logger.info({ id }, 'Deleting proposal no vote');
-    await prisma.proposal_no_votes.delete({
-      where: { id }
-    });
-    logger.debug({ id }, 'Proposal no vote deleted successfully');
-  } catch (error) {
-    logger.error({ error, id }, 'Error deleting proposal no vote');
-    throw new Error('Could not delete proposal no vote');
+    throw error;
   }
 };
 
@@ -830,5 +837,99 @@ export const deleteOldDraftProposals = async (): Promise<number> => {
   } catch (error) {
     logger.error({ error }, 'Error deleting old draft proposals');
     throw new Error('Could not delete old draft proposals');
+  }
+};
+
+// Count active proposals
+export const countActiveProposals = async (): Promise<number> => {
+  try {
+    logger.info('Counting active proposals');
+    
+    // First get the active status ID
+    const activeStatus = await prisma.proposal_statuses.findFirst({
+      where: {
+        name: 'Active',
+        active: true
+      }
+    });
+
+    if (!activeStatus) {
+      logger.warn('No active status found in proposal_statuses');
+      return 0;
+    }
+
+    const count = await prisma.proposals.count({
+      where: {
+        status: activeStatus.id
+      }
+    });
+
+    logger.debug({ count }, 'Active proposals counted successfully');
+    return Number(count);
+  } catch (error) {
+    logger.error({ error }, 'Error counting active proposals');
+    throw new Error('Could not count active proposals');
+  }
+};
+
+// Get nominations for a specific proposal
+export const getNominationsForProposal = async (proposalId: number): Promise<ProposalNomination[]> => {
+  try {
+    logger.info({ proposalId }, 'Fetching nominations for proposal');
+    const nominations = await prisma.proposal_nominations.findMany({
+      where: {
+        proposal_id: Number(proposalId)
+      },
+      orderBy: {
+        created: 'desc'
+      }
+    });
+    
+    // Transform the nominations to match the ProposalNomination interface
+    const transformedNominations: ProposalNomination[] = nominations.map(nom => ({
+      id: nom.id,
+      created: nom.created ?? undefined,
+      hash: nom.hash ?? undefined,
+      toaddress: nom.toaddress ?? undefined,
+      amountsent: nom.amountsent ?? undefined,
+      validvote: nom.validvote ?? undefined,
+      proposal_id: nom.proposal_id ?? undefined
+    }));
+    
+    logger.debug({ proposalId, count: transformedNominations.length }, 'Retrieved nominations for proposal');
+    return transformedNominations;
+  } catch (error) {
+    logger.error({ error, proposalId }, 'Error fetching nominations for proposal');
+    throw new Error('Could not fetch nominations for proposal');
+  }
+};
+
+// Count nominations for a specific proposal
+export const countNominationsForProposal = async (proposalId: number): Promise<number> => {
+  try {
+    logger.info({ proposalId }, 'Counting nominations for proposal');
+    
+    // First check if proposal exists
+    const proposal = await prisma.proposals.findUnique({
+      where: { id: proposalId }
+    });
+
+    if (!proposal) {
+      logger.warn({ proposalId }, 'Proposal not found');
+      throw new Error('Proposal not found');
+    }
+
+    const count = await prisma.proposal_nominations.count({
+      where: {
+        proposal_id: proposalId
+      }
+    });
+    logger.debug({ proposalId, count }, 'Nominations counted successfully');
+    return count;
+  } catch (error) {
+    logger.error({ error, proposalId }, 'Error counting nominations for proposal');
+    throw new Error(error instanceof Error && error.message === 'Proposal not found' 
+      ? 'Proposal not found' 
+      : 'Could not count nominations for proposal');
   }
 }; 

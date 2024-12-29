@@ -1,21 +1,13 @@
 import { $fetch } from 'ofetch';
-import dotenv from 'dotenv';
-import process from 'process';
 import { createModuleLogger } from '../utils/logger.js';
+import { config } from '../config/env.js';
 
 // Initialize logger
 const logger = createModuleLogger('kaspaAPI');
 
-// Load environment variables from .env file
-const envFile = process.env.NODE_ENV === 'katgov' ? '.env.katgov' : '.env.kdao';
-dotenv.config({ path: envFile });
-
-const KASPA_API_BASE_URL = process.env.KASPA_API_BASE_URL || 'https://api.kaspa.org';
-const KSPR_MARKETPLACE_DATA_URL = process.env.KSPR_MARKETPLACE_DATA_URL || 'https://storage.googleapis.com/kspr-api-v1/marketplace/marketplace.json';
-
 // Create a configured fetch instance
 const apiFetch = $fetch.create({
-  baseURL: KASPA_API_BASE_URL,
+  baseURL: config.kaspa.apiBaseUrl,
   retry: 1,
   headers: {
     'Content-Type': 'application/json',
@@ -126,7 +118,7 @@ export const getMarketCapAndPrice = async () => {
 export const getKSPRMarketplaceData = async () => {
   try {
     logger.info('Fetching marketplace data');
-    const response = await fetch(KSPR_MARKETPLACE_DATA_URL);
+    const response = await fetch(config.kasplex.marketplaceDataUrl);
     if (!response.ok) {
       throw new Error('Network response was not ok');
     }
@@ -138,5 +130,71 @@ export const getKSPRMarketplaceData = async () => {
     throw error;
   }
 };
+
+export interface KaspaTransaction {
+  subnetwork_id: string;
+  transaction_id: string;
+  hash: string;
+  mass: string;
+  block_hash: string[];
+  block_time: number;
+  is_accepted: boolean;
+  accepting_block_hash: string;
+  accepting_block_blue_score: number;
+  inputs: {
+    transaction_id: string;
+    index: number;
+    previous_outpoint_hash: string;
+    previous_outpoint_index: string;
+    previous_outpoint_resolved: any;
+    previous_outpoint_address: string;
+    previous_outpoint_amount: number;
+    signature_script: string;
+    sig_op_count: string;
+  }[];
+  outputs: {
+    transaction_id: string;
+    index: number;
+    amount: number;
+    script_public_key: string;
+    script_public_key_address: string;
+    script_public_key_type: string;
+    accepting_block_hash: string | null;
+  }[];
+}
+
+/**
+ * Get transactions for a specific address with pagination.
+ * @param address - The Kaspa address to get transactions for
+ * @param before - Optional timestamp for pagination
+ * @param limit - Number of transactions to return (default 500)
+ * @returns Array of transactions
+ */
+export async function getAddressTransactions(
+  address: string,
+  before?: number,
+  limit: number = 500
+): Promise<KaspaTransaction[]> {
+  try {
+    const params = new URLSearchParams({
+      limit: limit.toString(),
+      resolve_previous_outpoints: 'light'
+    });
+    
+    if (before !== undefined) {
+      params.append('before', before.toString());
+    }
+
+    const encodedAddress = encodeURIComponent(address);
+    const url = `/addresses/${encodedAddress}/full-transactions-page?${params.toString()}`;
+    
+    logger.info({ address, before, limit }, 'Fetching Kaspa address transactions');
+    const response = await apiFetch(url);
+    return response;
+  } catch (error) {
+    logger.error({ error, address, before }, 'Error in getAddressTransactions');
+    throw error;
+  }
+}
 
 // Add more functions as needed to interact with other endpoints

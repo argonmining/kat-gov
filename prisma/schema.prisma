@@ -69,6 +69,7 @@ model election_candidates {
   nominations                                                                   Int?
   candidate_nominations_candidate_nominations_candidate_idToelection_candidates candidate_nominations[] @relation("candidate_nominations_candidate_idToelection_candidates")
   candidate_votes                                                               candidate_votes[]
+  election_votes                                                                election_votes[]        @relation("election_votes_to_candidates")
   candidate_wallets_candidate_wallets_candidate_idToelection_candidates         candidate_wallets[]     @relation("candidate_wallets_candidate_idToelection_candidates")
   candidate_nominations_election_candidates_nominationsTocandidate_nominations  candidate_nominations?  @relation("election_candidates_nominationsTocandidate_nominations", fields: [nominations], references: [id], onDelete: NoAction, onUpdate: NoAction)
   candidate_statuses_election_candidates_statusTocandidate_statuses             candidate_statuses?     @relation("election_candidates_statusTocandidate_statuses", fields: [status], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -279,16 +280,32 @@ model proposals {
 }
 
 model election_votes {
-  id           Int       @id @default(autoincrement())
+  id           Int                @id @default(autoincrement())
   election_id  Int
   candidate_id Int
-  toaddress    String    @db.VarChar(255)
-  amountsent   Decimal   @db.Decimal
-  created      DateTime  @db.Timestamptz(6)
-  validvote    Boolean   @default(true)
-  elections    elections @relation(fields: [election_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  candidates   election_candidates @relation(fields: [candidate_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  toaddress    String            @db.VarChar(255)
+  amountsent   Decimal           @db.Decimal
+  created      DateTime          @db.Timestamptz(6)
+  validvote    Boolean           @default(true)
+  elections    elections         @relation(fields: [election_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  candidates   election_candidates @relation("election_votes_to_candidates", fields: [candidate_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([election_id], map: "idx_election_votes_election_id")
   @@index([candidate_id], map: "idx_election_votes_candidate_id")
+}
+
+model treasury_transactions {
+  id          Int       @id @default(autoincrement())
+  hash        String    @unique @db.VarChar(255)
+  type        String    @db.VarChar(255)
+  description String?
+  ticker      String    @db.VarChar(255)
+  amount      Decimal?  @db.Decimal
+  created     DateTime  @default(now()) @db.Timestamptz(6)
+  updated     DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([hash], map: "idx_treasury_transactions_hash")
+  @@index([type], map: "idx_treasury_transactions_type")
+  @@index([ticker], map: "idx_treasury_transactions_ticker")
+  @@index([type, ticker], map: "idx_treasury_transactions_type_ticker")
 }

@@ -1,5 +1,7 @@
 import { Decimal } from '@prisma/client/runtime/library';
+import { CandidateVote } from './candidateTypes.js';
 
+// Core election types
 export interface Election {
   id: number;
   title: string;
@@ -18,6 +20,7 @@ export interface Election {
   snapshot: number | null;
 }
 
+// Election candidate types
 export interface ElectionCandidate {
   id: number;
   name: string;
@@ -52,6 +55,20 @@ export interface ElectionType {
   active: boolean;
 }
 
+// Election voting types
+export interface ElectionVote {
+  id: number;
+  election_id: number;
+  candidate_id: number;
+  toaddress: string;
+  amountsent: Decimal;
+  created: Date;
+  validvote: boolean;
+  votescounted: number;
+  election_snapshot_id?: number;
+}
+
+// Election snapshot types
 export interface ElectionSnapshot {
   id: number;
   generated: Date;
@@ -59,14 +76,5 @@ export interface ElectionSnapshot {
   proposal_id: number | null;
 }
 
-export interface CandidateVote {
-  id: number;
-  created: Date;
-  hash: string | null;
-  toaddress: string;
-  amountsent: Decimal;
-  votescounted: number | null;
-  validvote: boolean;
-  candidate_id: number;
-  election_snapshot_id: number | null;
-} 
+// Re-export CandidateVote for backward compatibility
+export { CandidateVote }; 

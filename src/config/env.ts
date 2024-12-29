@@ -36,11 +36,14 @@ export const config = {
     network: process.env.KASPA_NETWORK || 'testnet-10',
     apiBaseUrl: process.env.KASPA_API_BASE_URL || 'https://api.kaspa.org',
     govAddress: process.env.GOV_ADDRESS || 'kaspa:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx9awp4e',
+    yesAddress: process.env.YES_ADDRESS || 'kaspa:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx9awp4e',
+    noAddress: process.env.NO_ADDRESS || 'kaspa:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx9awp4e',
     govPrivateKey: process.env.GOV_PRIVATE_KEY,
     yesPrivateKey: process.env.YES_PRIVATE_KEY,
     noPrivateKey: process.env.NO_PRIVATE_KEY,
     priorityFeeValue: process.env.PRIORITY_FEE_VALUE || '0.5',
     wasmResolver: process.env.KASPA_WASM_RESOLVER,
+    treasuryWallets: process.env.TREASURY_WALLETS ? process.env.TREASURY_WALLETS.split(',') : [],
   },
   kasplex: {
     apiBaseUrl: process.env.KASPLEX_API_BASE_URL || 'https://api.kasplex.org/v1/krc20',
@@ -58,8 +61,8 @@ export const config = {
   proposals: {
     submissionFeeUsd: parseFloat(process.env.PROPOSAL_SUBMISSION_FEE_USD || '50'),
     nominationFeeUsd: parseFloat(process.env.PROPOSAL_NOMINATION_FEE_USD || '50'),
-    votingFeeMultiplier: parseFloat(process.env.PROPOSAL_VOTING_FEE_MULTIPLIER || '1000'),
-    votingFeeMin: parseFloat(process.env.PROPOSAL_VOTING_FEE_MIN || '0.1'),
+    votingFeeMin: process.env.VOTING_FEE_MIN ? parseFloat(process.env.VOTING_FEE_MIN) : 0.1,
+    votingFeeMax: process.env.VOTING_FEE_MAX ? parseFloat(process.env.VOTING_FEE_MAX) : 100000,
     maximumVotes: parseInt(process.env.PROPOSAL_MAXIMUM_VOTES || '10000000', 10),
   },
   candidates: {
@@ -69,7 +72,7 @@ export const config = {
 
 // Export individual commonly used values for convenience
 export const { nodeEnv, port } = config;
-export const { network: NETWORK_ID, apiBaseUrl: KASPA_API_BASE_URL } = config.kaspa;
+export const { network: NETWORK_ID, apiBaseUrl: KASPA_API_BASE_URL, govAddress: GOV_ADDRESS, yesAddress: YES_ADDRESS, noAddress: NO_ADDRESS, treasuryWallets: TREASURY_WALLETS } = config.kaspa;
 export const { govTokenTicker: GOV_TOKEN_TICKER } = config.tokens;
 export const { encryptionKey: ENCRYPTION_KEY } = config.security;
 export const { apiBaseUrl: KASPLEX_API_BASE_URL } = config.kasplex;
