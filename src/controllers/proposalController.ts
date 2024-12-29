@@ -692,9 +692,9 @@ export const removeProposalSnapshot = async (req: Request, res: Response, next: 
 
 export const fetchNominationsForProposal = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const proposalId = parseInt(req.params.proposalId, 10);
+    const proposalId = parseInt(req.params.id, 10);
     if (isNaN(proposalId)) {
-      logger.warn({ proposalId: req.params.proposalId }, 'Invalid proposal ID format');
+      logger.warn({ proposalId: req.params.id }, 'Invalid proposal ID format');
       res.status(400).json({ error: 'Invalid proposal ID' });
       return;
     }
@@ -704,7 +704,7 @@ export const fetchNominationsForProposal = async (req: Request, res: Response, n
     logger.debug({ proposalId, count: nominations.length }, 'Nominations retrieved successfully');
     res.status(200).json(nominations);
   } catch (error) {
-    logger.error({ error, proposalId: req.params.proposalId }, 'Error fetching nominations');
+    logger.error({ error, proposalId: req.params.id }, 'Error fetching nominations');
     next(error);
   }
 };
@@ -723,9 +723,9 @@ export const fetchActiveProposalCount = async (req: Request, res: Response, next
 
 export const fetchNominationCount = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const proposalId = parseInt(req.params.proposalId, 10);
+    const proposalId = parseInt(req.params.id, 10);
     if (isNaN(proposalId)) {
-      logger.warn({ proposalId: req.params.proposalId }, 'Invalid proposal ID format');
+      logger.warn({ proposalId: req.params.id }, 'Invalid proposal ID format');
       res.status(400).json({ error: 'Invalid proposal ID' });
       return;
     }
@@ -735,7 +735,7 @@ export const fetchNominationCount = async (req: Request, res: Response, next: Ne
     logger.debug({ proposalId, count }, 'Nomination count retrieved successfully');
     res.status(200).json({ nominationCount: count });
   } catch (error) {
-    logger.error({ error, proposalId: req.params.proposalId }, 'Error fetching nomination count');
+    logger.error({ error, proposalId: req.params.id }, 'Error fetching nomination count');
     if (error instanceof Error && error.message === 'Proposal not found') {
       res.status(404).json({ error: 'Proposal not found' });
       return;
