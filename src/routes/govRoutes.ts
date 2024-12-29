@@ -165,6 +165,8 @@ router.post('/burn/no-wallet', burnController.burnNoWalletTokens);
 // ============================================================================
 
 router.post('/treasury/fetch-transactions', treasuryController.fetchTreasuryTransactions);
+router.get('/treasury/wallets', treasuryController.getTreasuryWallets);
+router.get('/treasury/wallet/:address/transactions', treasuryController.getWalletTransactions);
 
 // ============================================================================
 // System Maintenance Routes
