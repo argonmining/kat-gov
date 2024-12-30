@@ -942,6 +942,7 @@ export const verifyNominationTransaction = async (req: Request, res: Response, n
                   fromAddress: operation.from
                 }, 'Found matching transaction, creating nomination');
                 
+                // Create the nomination
                 const nomination = await createProposalNomination({
                   proposal_id: proposalId,
                   toaddress: walletAddress,
@@ -949,8 +950,15 @@ export const verifyNominationTransaction = async (req: Request, res: Response, n
                   hash: operation.hashRev,
                   created: new Date(),
                   validvote: true,
-                  fromaddress: operation.from // Store the from address
+                  fromaddress: operation.from
                 });
+
+                // Check if this is the first nomination for this proposal
+                const currentNominations = await getNominationsForProposal(proposalId);
+                if (currentNominations.length === 1) {
+                  logger.info({ proposalId }, 'First nomination received, updating proposal status to 3');
+                  await updateProposal(proposalId, { status: 3 });
+                }
                 
                 logger.info({ nominationId: nomination.id, proposalId }, 'Nomination created successfully');
                 return;
