@@ -190,6 +190,8 @@ model proposal_nominations {
   validvote   Boolean?
   proposal_id Int?
   proposals   proposals? @relation(fields: [proposal_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([fromaddress, proposal_id])
 }
 
 model proposal_snapshots {

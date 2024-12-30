@@ -882,19 +882,33 @@ export const getNominationsForProposal = async (proposalId: number): Promise<Pro
       },
       orderBy: {
         created: 'desc'
+      },
+      select: {
+        id: true,
+        created: true,
+        hash: true,
+        toaddress: true,
+        fromaddress: true,
+        amountsent: true,
+        validvote: true,
+        proposal_id: true
       }
     });
     
     // Transform the nominations to match the ProposalNomination interface
-    const transformedNominations: ProposalNomination[] = nominations.map(nom => ({
-      id: nom.id,
-      created: nom.created ?? undefined,
-      hash: nom.hash ?? undefined,
-      toaddress: nom.toaddress ?? undefined,
-      amountsent: nom.amountsent ?? undefined,
-      validvote: nom.validvote ?? undefined,
-      proposal_id: nom.proposal_id ?? undefined
-    }));
+    const transformedNominations = nominations.map(nom => {
+      const nomination: ProposalNomination = {
+        id: nom.id,
+        created: nom.created ?? undefined,
+        hash: nom.hash ?? undefined,
+        toaddress: nom.toaddress ?? undefined,
+        fromaddress: nom.fromaddress ?? undefined,
+        amountsent: nom.amountsent ?? undefined,
+        validvote: nom.validvote ?? undefined,
+        proposal_id: nom.proposal_id ?? undefined
+      };
+      return nomination;
+    });
     
     logger.debug({ proposalId, count: transformedNominations.length }, 'Retrieved nominations for proposal');
     return transformedNominations;
