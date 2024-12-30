@@ -510,14 +510,16 @@ export const getAllProposalNominations = async (): Promise<ProposalNomination[]>
 
 export const createProposalNomination = async (nomination: Omit<ProposalNomination, 'id'>): Promise<ProposalNomination> => {
   try {
-    const { proposal_id, toaddress, amountsent, validvote } = nomination;
-    logger.info({ proposal_id, toaddress, amountsent }, 'Creating proposal nomination');
+    const { proposal_id, toaddress, amountsent, validvote, fromaddress, hash } = nomination;
+    logger.info({ proposal_id, toaddress, amountsent, fromaddress }, 'Creating proposal nomination');
     const result = await prisma.proposal_nominations.create({
       data: {
         proposal_id,
         toaddress,
         amountsent,
         validvote,
+        fromaddress,
+        hash,
         created: new Date()
       },
       include: {
