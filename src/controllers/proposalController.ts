@@ -878,6 +878,24 @@ export const verifyNominationTransaction = async (req: Request, res: Response, n
               const operationAmount = operation.amt ? Number(operation.amt) : 0;
               const operationTimestamp = new Date(Number(operation.mtsAdd)).getTime();
               
+              // Add detailed logging for debugging
+              logger.info({ 
+                debug: {
+                  expectedAmount: targetAmount,
+                  receivedAmount: operationAmount,
+                  expectedTicker: GOV_TOKEN_TICKER,
+                  receivedTicker: operation.tick,
+                  expectedAddress: walletAddress,
+                  receivedAddress: operation.to,
+                  transactionTimestamp: operationTimestamp,
+                  verificationStartTime: timestamp,
+                  amountMatches: operationAmount === targetAmount,
+                  tickerMatches: operation.tick === GOV_TOKEN_TICKER,
+                  addressMatches: operation.to === walletAddress,
+                  timestampMatches: operationTimestamp > (timestamp - 3600000) // Accept transactions from last hour
+                }
+              }, 'Debug: Transaction match details');
+
               // Check if this address has already nominated
               const hasExistingNomination = existingNominations.some(
                 nom => nom.fromaddress?.toLowerCase() === operation.from.toLowerCase()
@@ -895,7 +913,7 @@ export const verifyNominationTransaction = async (req: Request, res: Response, n
                 to: operation.to === walletAddress,
                 amount: operationAmount === targetAmount,
                 tick: operation.tick === GOV_TOKEN_TICKER,
-                timestamp: operationTimestamp > timestamp
+                timestamp: operationTimestamp > (timestamp - 3600000) // Accept transactions from last hour
               };
 
               logger.debug({ 
