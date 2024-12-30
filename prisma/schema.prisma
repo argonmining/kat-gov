@@ -185,6 +185,7 @@ model proposal_nominations {
   created     DateTime?  @db.Timestamptz(6)
   hash        String?    @unique @db.VarChar(255)
   toaddress   String?    @db.VarChar(255)
+  fromaddress String?    @db.VarChar(255)
   amountsent  Decimal?   @db.Decimal
   validvote   Boolean?
   proposal_id Int?

@@ -80,6 +80,7 @@ export interface ProposalNomination {
   created?: Date;
   hash?: string;
   toaddress?: string;
+  fromaddress?: string;
   amountsent?: Decimal;
   validvote?: boolean;
   proposal_id?: number;

@@ -51,6 +51,24 @@ import { calculateVoteWeight } from '../utils/voteCalculator.js';
 import { config, GOV_ADDRESS, YES_ADDRESS, NO_ADDRESS, GOV_TOKEN_TICKER } from '../config/env.js';
 import { getKRC20OperationList } from '../services/kasplexAPI.js';
 
+interface KRC20Operation {
+  p: string;
+  op: string;
+  tick: string;
+  amt: string;
+  from: string;
+  to: string;
+  opScore: string;
+  hashRev: string;
+  feeRev: string;
+  txAccept: string;
+  opAccept: string;
+  opError: string;
+  checkpoint: string;
+  mtsAdd: string;
+  mtsMod: string;
+}
+
 const logger = createModuleLogger('proposalController');
 
 // Proposals
@@ -831,26 +849,80 @@ export const verifyNominationTransaction = async (req: Request, res: Response, n
 
       while (transactionCheckAttempts < maxAttempts) {
         try {
-          const operations = await getKRC20OperationList({
+          const response = await getKRC20OperationList({
             address: walletAddress,
             tick: GOV_TOKEN_TICKER
           });
 
-          if (Array.isArray(operations)) {
+          logger.debug({ 
+            response,
+            targetAmount,
+            walletAddress,
+            ticker: GOV_TOKEN_TICKER
+          }, 'Checking KRC20 operations');
+
+          if (response?.result && Array.isArray(response.result)) {
+            logger.debug({ 
+              transactionCount: response.result.length,
+              targetAmount,
+              walletAddress,
+              ticker: GOV_TOKEN_TICKER
+            }, 'Found transactions to check');
+
             // Look for transactions after the verification started
-            const matchingOperation = operations.find(operation => 
-              operation.to === walletAddress && 
-              operation.amt === targetAmount && 
-              operation.tick === GOV_TOKEN_TICKER &&
-              new Date(operation.timestamp).getTime() > timestamp
-            );
+            const matchingOperation = response.result.find(async (operation: KRC20Operation) => {
+              // Convert operation amount to number for comparison
+              const operationAmount = operation.amt ? Number(operation.amt) : 0;
+              const operationTimestamp = new Date(Number(operation.mtsAdd)).getTime();
+              
+              // Check if this address has already nominated
+              const existingNominations = await getNominationsForProposal(proposalId);
+              const hasExistingNomination = existingNominations.some(
+                nom => nom.toaddress?.toLowerCase() === operation.from.toLowerCase()
+              );
+
+              if (hasExistingNomination) {
+                logger.warn({ 
+                  fromAddress: operation.from,
+                  proposalId 
+                }, 'Address has already nominated this proposal');
+                return false;
+              }
+
+              const matches = {
+                to: operation.to === walletAddress,
+                amount: operationAmount === targetAmount,
+                tick: operation.tick === GOV_TOKEN_TICKER,
+                timestamp: operationTimestamp > timestamp
+              };
+
+              logger.debug({ 
+                operation: {
+                  from: operation.from,
+                  to: operation.to,
+                  amount: operationAmount,
+                  tick: operation.tick,
+                  timestamp: operationTimestamp
+                },
+                expected: {
+                  to: walletAddress,
+                  amount: targetAmount,
+                  tick: GOV_TOKEN_TICKER,
+                  timestampAfter: timestamp
+                },
+                matches
+              }, 'Checking operation');
+
+              return matches.to && matches.amount && matches.tick && matches.timestamp;
+            });
 
             if (matchingOperation) {
               logger.info({ 
                 proposalId,
                 hashRev: matchingOperation.hashRev,
                 amount: matchingOperation.amt,
-                tick: matchingOperation.tick 
+                tick: matchingOperation.tick,
+                fromAddress: matchingOperation.from
               }, 'Found matching transaction, creating nomination');
               
               const nomination = await createProposalNomination({
@@ -859,7 +931,8 @@ export const verifyNominationTransaction = async (req: Request, res: Response, n
                 amountsent: new Decimal(fee.toString()),
                 hash: matchingOperation.hashRev,
                 created: new Date(),
-                validvote: true
+                validvote: true,
+                fromaddress: matchingOperation.from // Store the from address
               });
               
               logger.info({ nominationId: nomination.id, proposalId }, 'Nomination created successfully');
@@ -929,7 +1002,10 @@ export const getNominationVerificationStatus = async (req: Request, res: Respons
       logger.info({ proposalId, verificationId }, 'Nomination verification completed');
       res.status(200).json({
         status: 'completed',
-        nomination,
+        nomination: {
+          ...nomination,
+          fromAddress: nomination.fromaddress // Include the from address in the response
+        },
         proposal: await getProposalById(proposalId) // Include updated proposal data
       });
     } else {
