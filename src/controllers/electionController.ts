@@ -21,7 +21,8 @@ import {
   createElectionType,
   updateElectionType,
   deleteElectionType,
-  countActiveElections
+  countActiveElections,
+  updateElection
 } from '../models/electionModels.js';
 import {
   Election,
@@ -394,6 +395,41 @@ export const fetchActiveElectionCount = async (req: Request, res: Response, next
     res.status(200).json(count);
   } catch (error) {
     logger.error({ error }, 'Error fetching active election count');
+    next(error);
+  }
+};
+
+export const modifyElection = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      logger.warn({ electionId: req.params.id }, 'Invalid election ID format');
+      res.status(400).json({ error: 'Invalid election ID' });
+      return;
+    }
+
+    const electionData = req.body;
+    logger.info({ electionId: id, updates: electionData }, 'Modifying election');
+    
+    // Convert date strings to Date objects if they exist
+    if (electionData.openvote) {
+      electionData.openvote = new Date(electionData.openvote);
+    }
+    if (electionData.closevote) {
+      electionData.closevote = new Date(electionData.closevote);
+    }
+
+    const updatedElection = await updateElection(id, electionData);
+    if (!updatedElection) {
+      logger.warn({ electionId: id }, 'Election not found');
+      res.status(404).json({ error: 'Election not found' });
+      return;
+    }
+
+    logger.info({ electionId: id }, 'Election updated successfully');
+    res.status(200).json(updatedElection);
+  } catch (error) {
+    logger.error({ error, electionId: req.params.id }, 'Error modifying election');
     next(error);
   }
 }; 
