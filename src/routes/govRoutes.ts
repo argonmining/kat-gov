@@ -94,6 +94,7 @@ router.get('/proposal/:id/nominations/status', proposalController.getNominationV
 
 // Core election operations
 router.get('/elections', electionController.fetchAllElections);
+router.get('/election/:id', electionController.fetchElectionById);
 router.post('/election', electionController.submitElection);
 router.put('/election/:id', electionController.modifyElection);
 router.delete('/election/:id', electionController.removeElection);

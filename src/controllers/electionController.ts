@@ -22,7 +22,8 @@ import {
   updateElectionType,
   deleteElectionType,
   countActiveElections,
-  updateElection
+  updateElection,
+  getElectionById
 } from '../models/electionModels.js';
 import {
   Election,
@@ -439,5 +440,29 @@ export const modifyElection = async (req: Request, res: Response, next: NextFunc
   } catch (error) {
     logger.error({ error, electionId: req.params.id }, 'Error modifying election');
     next(error);
+  }
+};
+
+// Get election by ID
+export const fetchElectionById = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      res.status(400).json({ error: 'Invalid election ID' });
+      return;
+    }
+
+    logger.info({ id }, 'Fetching election by ID');
+    const election = await getElectionById(id);
+
+    if (!election) {
+      res.status(404).json({ error: 'Election not found' });
+      return;
+    }
+
+    res.status(200).json(election);
+  } catch (error) {
+    logger.error({ error }, 'Error fetching election by ID');
+    res.status(500).json({ error: 'Internal server error' });
   }
 }; 

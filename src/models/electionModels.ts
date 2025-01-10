@@ -540,8 +540,8 @@ export const countActiveElections = async (): Promise<number> => {
 
 export const getElectionById = async (id: number): Promise<Election | null> => {
   try {
-    logger.info({ id }, 'Fetching election by ID');
-    const result = await prisma.elections.findUnique({
+    logger.info({ id }, 'Getting election by ID');
+    const election = await prisma.elections.findUnique({
       where: { id },
       include: {
         election_types: true,
@@ -552,17 +552,17 @@ export const getElectionById = async (id: number): Promise<Election | null> => {
         election_snapshots: true
       }
     });
-
-    if (result) {
-      logger.debug({ id }, 'Election retrieved successfully');
-      return result as unknown as Election;
-    }
     
-    logger.warn({ id }, 'No election found');
-    return null;
+    if (!election) {
+      logger.warn({ id }, 'Election not found');
+      return null;
+    }
+
+    logger.debug({ id: election.id }, 'Election retrieved successfully');
+    return election as unknown as Election;
   } catch (error) {
-    logger.error({ error, id }, 'Error fetching election by ID');
-    throw new Error('Could not fetch election');
+    logger.error({ error, id }, 'Error getting election by ID');
+    throw error;
   }
 };
 
