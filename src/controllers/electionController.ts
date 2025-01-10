@@ -80,13 +80,21 @@ export const fetchAllElections = async (req: Request, res: Response): Promise<vo
     logger.info('Fetching all elections');
     const elections = await getAllElections();
 
-    // Transform to match frontend format
+    // Transform to match frontend format with complete data
     const transformedElections = elections.map(election => ({
       id: election.id,
       title: election.title || '',
       description: election.description || '',
-      startDate: election.openvote?.toISOString(),
-      endDate: election.closevote?.toISOString()
+      type: election.type,
+      position: election.position,
+      status: election.status,
+      reviewed: election.reviewed,
+      approved: election.approved,
+      votesactive: election.votesactive,
+      openvote: election.openvote?.toISOString(),
+      closevote: election.closevote?.toISOString(),
+      firstcandidate: election.firstcandidate,
+      secondcandidate: election.secondcandidate
     }));
 
     logger.debug({ electionCount: elections.length }, 'Elections retrieved successfully');
