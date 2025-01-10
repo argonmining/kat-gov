@@ -33,6 +33,8 @@ import {
   ElectionType,
   CandidateVote
 } from '../types/electionTypes.js';
+import { createKaspaWallet } from '../utils/walletUtils.js';
+import { createCandidateWallet } from '../models/candidateModels.js';
 
 const logger = createModuleLogger('electionController');
 
@@ -143,9 +145,23 @@ export const submitElectionCandidate = async (req: Request, res: Response, next:
     const candidate: Omit<ElectionCandidate, 'id'> = req.body;
     logger.info({ candidate }, 'Submitting election candidate');
     
-    const newCandidate = await createElectionCandidate(candidate);
-    logger.info({ candidateId: newCandidate.id }, 'Candidate submitted successfully');
-    res.status(201).json(newCandidate);
+    // Create the candidate first
+    const newCandidate = await createElectionCandidate({
+      ...candidate,
+      created: new Date()
+    });
+
+    // Then create a new Kaspa wallet and associate it with the candidate
+    const { address, encryptedPrivateKey } = await createKaspaWallet();
+    const wallet = await createCandidateWallet(address, encryptedPrivateKey, newCandidate.id);
+    
+    // Update the candidate with the wallet ID
+    const updatedCandidate = await updateElectionCandidate(newCandidate.id, {
+      wallet: wallet.id
+    });
+
+    logger.info({ candidateId: newCandidate.id, walletId: wallet.id }, 'Candidate and wallet created successfully');
+    res.status(201).json(updatedCandidate);
   } catch (error) {
     logger.error({ error, candidate: req.body }, 'Error submitting election candidate');
     next(error);

@@ -145,22 +145,23 @@ export const getAllCandidateWallets = async (): Promise<CandidateWallet[]> => {
   }
 };
 
-export const createCandidateWallet = async (address: string, encryptedPrivateKey: string): Promise<CandidateWallet> => {
+export const createCandidateWallet = async (address: string, encryptedPrivateKey: string, candidate_id: number): Promise<CandidateWallet> => {
   try {
-    logger.info({ address }, 'Creating candidate wallet');
+    logger.info({ address, candidate_id }, 'Creating candidate wallet');
     const result = await prisma.candidate_wallets.create({
       data: {
         address,
         encryptedprivatekey: encryptedPrivateKey,
         active: true,
         created: new Date(),
-        balance: new Decimal('0')
+        balance: new Decimal('0'),
+        candidate_id
       }
     });
     logger.debug({ id: result.id }, 'Candidate wallet created successfully');
     return result as unknown as CandidateWallet;
   } catch (error) {
-    logger.error({ error, address }, 'Error creating candidate wallet');
+    logger.error({ error, address, candidate_id }, 'Error creating candidate wallet');
     throw new Error('Could not create candidate wallet');
   }
 };

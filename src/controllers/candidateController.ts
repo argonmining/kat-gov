@@ -101,10 +101,16 @@ export const fetchAllCandidateWallets = async (req: Request, res: Response, next
 
 export const addCandidateWallet = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { address, encryptedPrivateKey } = req.body;
-    logger.info({ address }, 'Adding candidate wallet');
+    const { address, encryptedPrivateKey, candidate_id } = req.body;
+    if (!candidate_id) {
+      logger.warn({ body: req.body }, 'Missing required candidate_id field');
+      res.status(400).json({ error: 'Missing required candidate_id field' });
+      return;
+    }
     
-    const newWallet = await createCandidateWallet(address, encryptedPrivateKey);
+    logger.info({ address, candidate_id }, 'Adding candidate wallet');
+    
+    const newWallet = await createCandidateWallet(address, encryptedPrivateKey, candidate_id);
     logger.info({ walletId: newWallet.id }, 'Wallet created successfully');
     res.status(201).json(newWallet);
   } catch (error) {
