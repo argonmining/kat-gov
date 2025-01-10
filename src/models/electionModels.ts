@@ -224,7 +224,14 @@ export const deleteElectionCandidate = async (id: number): Promise<void> => {
 export const getAllElectionPositions = async (): Promise<ElectionPosition[]> => {
   try {
     logger.info('Fetching all election positions');
-    const result = await prisma.election_positions.findMany();
+    const result = await prisma.election_positions.findMany({
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        created: true
+      }
+    });
     logger.debug({ count: result.length }, 'Retrieved all election positions');
     return result as unknown as ElectionPosition[];
   } catch (error) {

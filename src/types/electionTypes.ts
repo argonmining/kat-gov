@@ -40,7 +40,6 @@ export interface ElectionPosition {
   title: string;
   description: string;
   created: Date;
-  active: boolean;
 }
 
 export interface ElectionStatus {

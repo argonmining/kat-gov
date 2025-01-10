@@ -92,13 +92,6 @@ router.get('/proposal/:id/nominations/status', proposalController.getNominationV
 // Election Management Routes
 // ============================================================================
 
-// Core election operations
-router.get('/elections', electionController.fetchAllElections);
-router.get('/election/:id', electionController.fetchElectionById);
-router.post('/election', electionController.submitElection);
-router.put('/election/:id', electionController.modifyElection);
-router.delete('/election/:id', electionController.removeElection);
-
 // Election type management
 router.get('/election/types', electionController.fetchAllElectionTypes);
 router.post('/election/types', electionController.addElectionType);
@@ -122,6 +115,13 @@ router.get('/election/candidates', electionController.fetchAllElectionCandidates
 router.post('/election/candidates', electionController.submitElectionCandidate);
 router.put('/election/candidates/:id', electionController.modifyElectionCandidate);
 router.delete('/election/candidates/:id', electionController.removeElectionCandidate);
+
+// Core election operations
+router.get('/elections', electionController.fetchAllElections);
+router.get('/election/:id', electionController.fetchElectionById);
+router.post('/election', electionController.submitElection);
+router.put('/election/:id', electionController.modifyElection);
+router.delete('/election/:id', electionController.removeElection);
 
 // ============================================================================
 // Candidate Management Routes
