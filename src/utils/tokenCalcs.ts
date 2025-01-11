@@ -201,3 +201,37 @@ export function proposalVoteFee(amount: number): { votes: number, amount: number
     throw error;
   }
 }
+
+export async function validateVoteAmount(address: string, amount: number, snapshotData: any): Promise<boolean> {
+  try {
+    // Find the holder's balance in the snapshot
+    const holder = snapshotData.holders.find((h: { address: string }) => 
+      h.address.toLowerCase() === address.toLowerCase()
+    );
+
+    if (!holder) {
+      logger.warn({ address }, 'Address not found in snapshot');
+      return false;
+    }
+
+    // Convert balance from string to number (assuming balance is in the smallest unit)
+    const balance = BigInt(holder.balance);
+    const voteAmount = BigInt(amount);
+
+    // Validate that the vote amount is not greater than their balance at snapshot time
+    const isValid = voteAmount <= balance;
+    
+    if (!isValid) {
+      logger.warn({ 
+        address, 
+        balance: balance.toString(), 
+        voteAmount: voteAmount.toString() 
+      }, 'Vote amount exceeds snapshot balance');
+    }
+
+    return isValid;
+  } catch (error) {
+    logger.error({ error, address, amount }, 'Error validating vote amount');
+    return false;
+  }
+}

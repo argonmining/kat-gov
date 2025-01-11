@@ -17,14 +17,24 @@ export interface SnapshotSummary {
 export interface SnapshotData {
   tick: string;
   timestamp: number;
-  holders: TokenHolder[];
-  summary: SnapshotSummary;
+  summary: {
+    totalSupply: string;
+    holdersCount: number;
+    lockedTokens: string;
+    circulatingSupply: string;
+  };
+  holders: Array<{
+    address: string;
+    balance: number;
+    locked: number;
+    share: number;
+  }>;
 }
 
 // API types
 export interface SnapshotResponse {
   success: boolean;
-  data: SnapshotData;
+  result: SnapshotData;
 }
 
 // Request/Response types
