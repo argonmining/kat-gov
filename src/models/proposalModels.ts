@@ -756,6 +756,8 @@ export const getAllProposalSnapshots = async (): Promise<ProposalSnapshot[]> => 
 export const createProposalSnapshot = async (proposal_id: number, data: Record<string, any>): Promise<ProposalSnapshot> => {
   try {
     logger.info({ proposal_id, data }, 'Creating proposal snapshot');
+    
+    // Create the snapshot
     const result = await prisma.proposal_snapshots.create({
       data: {
         proposal_id,
@@ -766,6 +768,13 @@ export const createProposalSnapshot = async (proposal_id: number, data: Record<s
         proposals_proposal_snapshots_proposal_idToproposals: true
       }
     });
+
+    // Update the proposal to reference this snapshot
+    await prisma.proposals.update({
+      where: { id: proposal_id },
+      data: { snapshot: result.id }
+    });
+
     logger.debug({ id: result.id }, 'Proposal snapshot created successfully');
     return result as unknown as ProposalSnapshot;
   } catch (error) {

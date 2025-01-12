@@ -450,6 +450,8 @@ export const getAllElectionSnapshots = async (): Promise<ElectionSnapshot[]> => 
 export const createElectionSnapshot = async (electionId: number, snapshotData: Record<string, any>): Promise<ElectionSnapshot> => {
   try {
     logger.info({ electionId }, 'Creating election snapshot');
+    
+    // Create the snapshot
     const result = await prisma.election_snapshots.create({
       data: {
         generated: new Date(),
@@ -464,6 +466,13 @@ export const createElectionSnapshot = async (electionId: number, snapshotData: R
         candidate_votes: true
       }
     });
+
+    // Update the election to reference this snapshot
+    await prisma.elections.update({
+      where: { id: electionId },
+      data: { snapshot: result.id }
+    });
+
     logger.debug({ id: result.id }, 'Election snapshot created successfully');
     return result as unknown as ElectionSnapshot;
   } catch (error) {
