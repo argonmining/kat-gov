@@ -12,6 +12,7 @@ import {
 } from '../models/electionModels.js';
 import { fetchTokenSnapshot } from '../services/snapshotService.js';
 import { CreateSnapshotRequest } from '../types/snapshotTypes.js';
+import { prisma } from '../config/prisma.js';
 
 const logger = createModuleLogger('snapshotController');
 
@@ -94,6 +95,39 @@ export const createNewSnapshot = async (req: Request, res: Response, next: NextF
     res.status(201).json(snapshot);
   } catch (error) {
     logger.error({ error, body: req.body }, 'Error creating snapshot');
+    next(error);
+  }
+};
+
+export const fetchSnapshotById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const snapshotId = parseInt(req.params.id);
+    
+    if (isNaN(snapshotId)) {
+      logger.warn({ id: req.params.id }, 'Invalid snapshot ID format');
+      res.status(400).json({ error: 'Invalid snapshot ID format' });
+      return;
+    }
+
+    logger.info({ snapshotId }, 'Fetching snapshot by ID');
+    
+    const snapshot = await prisma.proposal_snapshots.findUnique({
+      where: { id: snapshotId },
+      include: {
+        proposals_proposal_snapshots_proposal_idToproposals: true
+      }
+    });
+
+    if (!snapshot) {
+      logger.warn({ snapshotId }, 'Snapshot not found');
+      res.status(404).json({ error: 'Snapshot not found' });
+      return;
+    }
+
+    logger.debug({ snapshotId }, 'Snapshot retrieved successfully');
+    res.status(200).json(snapshot);
+  } catch (error) {
+    logger.error({ error }, 'Error fetching snapshot by ID');
     next(error);
   }
 };

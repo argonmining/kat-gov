@@ -62,6 +62,7 @@ router.get('/active/election/count', electionController.fetchActiveElectionCount
 router.get('/proposal/snapshots', snapshotController.fetchAllProposalSnapshots);
 router.get('/election/snapshots', snapshotController.fetchAllElectionSnapshots);
 router.post('/snapshot', snapshotController.createNewSnapshot);
+router.get('/snapshot/:id', snapshotController.fetchSnapshotById);
 
 // ============================================================================
 // Token Burn Management Routes
