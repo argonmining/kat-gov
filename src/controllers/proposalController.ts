@@ -298,11 +298,72 @@ export const fetchAllProposalYesVotes = async (req: Request, res: Response): Pro
 export const submitProposalYesVote = async (req: Request, res: Response): Promise<void> => {
   try {
     const { proposal_id, transaction_hash } = req.body;
+    logger.info({ proposal_id, transaction_hash }, 'Starting submitProposalYesVote');
     
     // Get transaction details first
-    const txDetails = await getKRC20OperationDetails(transaction_hash);
-    if (!txDetails) {
+    const response = await getKRC20OperationDetails(transaction_hash);
+    logger.debug({ response }, 'Transaction response received');
+    
+    if (!response || !response.result || !Array.isArray(response.result) || response.result.length === 0) {
+      logger.warn({ transaction_hash }, 'Transaction not found or not confirmed');
       res.status(400).json({ error: 'Transaction not found or not confirmed' });
+      return;
+    }
+
+    const txDetails = response.result[0];
+    logger.debug({ txDetails }, 'Transaction details extracted');
+
+    // Check if this transaction hash has already been used for a vote
+    const existingVote = await prisma.proposal_yes_votes.findUnique({
+      where: { hash: txDetails.hashRev }
+    });
+
+    if (existingVote) {
+      logger.warn({ 
+        transaction_hash: txDetails.hashRev,
+        proposal_id: existingVote.proposal_id 
+      }, 'Transaction hash already used for a vote');
+      res.status(400).json({ 
+        error: 'This transaction has already been used for voting',
+        details: {
+          proposal_id: existingVote.proposal_id,
+          vote_id: existingVote.id,
+          created: existingVote.created
+        }
+      });
+      return;
+    }
+
+    // Validate transaction details
+    if (!txDetails.amt) {
+      logger.warn({ txDetails }, 'Transaction amount is missing');
+      res.status(400).json({ error: 'Invalid transaction: amount is missing' });
+      return;
+    }
+
+    if (!txDetails.from) {
+      logger.warn({ txDetails }, 'Transaction from address is missing');
+      res.status(400).json({ error: 'Invalid transaction: sender address is missing' });
+      return;
+    }
+
+    if (!txDetails.mtsAdd) {
+      logger.warn({ txDetails }, 'Transaction timestamp is missing');
+      res.status(400).json({ error: 'Invalid transaction: timestamp is missing' });
+      return;
+    }
+
+    // Validate it's a governance token transfer
+    if (txDetails.tick !== GOV_TOKEN_TICKER || txDetails.op !== 'transfer') {
+      logger.warn({ txDetails }, `Invalid transaction: not a ${GOV_TOKEN_TICKER} transfer`);
+      res.status(400).json({ error: `Invalid transaction: must be a ${GOV_TOKEN_TICKER} transfer` });
+      return;
+    }
+
+    // Validate the transaction is accepted
+    if (txDetails.txAccept !== '1' || txDetails.opAccept !== '1') {
+      logger.warn({ txDetails }, 'Transaction not accepted');
+      res.status(400).json({ error: 'Transaction not accepted' });
       return;
     }
 
@@ -310,36 +371,60 @@ export const submitProposalYesVote = async (req: Request, res: Response): Promis
     const rawAmount = BigInt(txDetails.amt);
     const amountForCalc = Number(rawAmount) / Math.pow(10, 8);
     const amountForStorage = new Decimal(txDetails.amt).div(Math.pow(10, 8));
+    
+    logger.debug({ 
+      rawAmount: txDetails.amt,
+      amountForCalc,
+      amountForStorage: amountForStorage.toString()
+    }, 'Amount conversion details');
 
     // Get proposal to check voting period
     const proposal = await prisma.proposals.findUnique({
       where: { id: proposal_id }
     });
+    
     if (!proposal) {
+      logger.warn({ proposal_id }, 'Proposal not found');
       res.status(404).json({ error: 'Proposal not found' });
       return;
     }
+
+    logger.debug({ proposal }, 'Proposal found');
 
     // Validate voting period using properly converted timestamp
     const txTime = new Date(parseInt(txDetails.mtsAdd));
     const openVote = proposal.openvote ? new Date(proposal.openvote) : null;
     const closeVote = proposal.closevote ? new Date(proposal.closevote) : null;
 
+    logger.debug({ 
+      txTime,
+      openVote,
+      closeVote
+    }, 'Vote timing details');
+
     if (!openVote || !closeVote) {
+      logger.warn({ proposal_id }, 'Voting period not set for this proposal');
       res.status(400).json({ error: 'Voting period not set for this proposal' });
       return;
     }
 
     if (txTime < openVote || txTime > closeVote) {
+      logger.warn({ 
+        txTime,
+        openVote,
+        closeVote,
+        proposal_id 
+      }, 'Transaction timestamp outside voting period');
       res.status(400).json({ error: 'Transaction timestamp outside voting period' });
       return;
     }
 
     // Calculate vote weight using the precise amount
     const voteWeight = calculateVoteWeight(amountForCalc);
+    logger.debug({ voteWeight }, 'Vote weight calculated');
     
     // Create the vote with converted amount and blockchain hash
-    const vote = await createProposalYesVote({
+    const voteData = {
       proposal_id,
       hash: txDetails.hashRev,
       toaddress: YES_ADDRESS,
@@ -348,17 +433,68 @@ export const submitProposalYesVote = async (req: Request, res: Response): Promis
       votescounted: voteWeight.votes,
       validvote: true,
       proposal_snapshot_id: proposal.snapshot || undefined
-    });
+    };
     
-    res.status(200).json({
-      id: vote.id,
-      votes: voteWeight.votes,
-      powerLevel: voteWeight.powerLevel,
-      transaction_hash: txDetails.hashRev
-    });
-  } catch (error) {
-    logger.error('Error in submitProposalYesVote:', error);
-    res.status(500).json({ error: 'Failed to submit yes vote' });
+    logger.debug({ voteData }, 'Attempting to create vote');
+    
+    try {
+      const vote = await createProposalYesVote(voteData);
+      
+      logger.info({ 
+        voteId: vote.id,
+        votes: voteWeight.votes,
+        powerLevel: voteWeight.powerLevel,
+        transaction_hash: txDetails.hashRev
+      }, 'Vote created successfully');
+      
+      res.status(200).json({
+        id: vote.id,
+        votes: voteWeight.votes,
+        powerLevel: voteWeight.powerLevel,
+        transaction_hash: txDetails.hashRev
+      });
+    } catch (voteError: any) {
+      // Check if this is a unique constraint error
+      if (voteError?.name === 'PrismaClientKnownRequestError' && voteError?.code === 'P2002') {
+        logger.warn({ 
+          transaction_hash: txDetails.hashRev,
+          proposal_id,
+          error: voteError 
+        }, 'Duplicate vote attempt');
+        res.status(400).json({ 
+          error: 'This transaction has already been used for voting'
+        });
+        return;
+      }
+
+      logger.error({
+        error: {
+          message: voteError?.message || 'Unknown error in vote creation',
+          stack: voteError?.stack,
+          name: voteError?.name
+        },
+        voteData
+      }, 'Error creating vote');
+      throw voteError;
+    }
+  } catch (error: any) {
+    logger.error({ 
+      error: {
+        message: error?.message || 'Unknown error',
+        stack: error?.stack,
+        name: error?.name
+      },
+      request: {
+        body: req.body,
+        query: req.query,
+        params: req.params
+      }
+    }, 'Error in submitProposalYesVote');
+    
+    // If we haven't already sent a response, send a 500
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to submit yes vote' });
+    }
   }
 };
 
@@ -377,11 +513,72 @@ export const fetchAllProposalNoVotes = async (req: Request, res: Response): Prom
 export const submitProposalNoVote = async (req: Request, res: Response): Promise<void> => {
   try {
     const { proposal_id, transaction_hash } = req.body;
+    logger.info({ proposal_id, transaction_hash }, 'Starting submitProposalNoVote');
     
     // Get transaction details first
-    const txDetails = await getKRC20OperationDetails(transaction_hash);
-    if (!txDetails) {
+    const response = await getKRC20OperationDetails(transaction_hash);
+    logger.debug({ response }, 'Transaction response received');
+    
+    if (!response || !response.result || !Array.isArray(response.result) || response.result.length === 0) {
+      logger.warn({ transaction_hash }, 'Transaction not found or not confirmed');
       res.status(400).json({ error: 'Transaction not found or not confirmed' });
+      return;
+    }
+
+    const txDetails = response.result[0];
+    logger.debug({ txDetails }, 'Transaction details extracted');
+
+    // Check if this transaction hash has already been used for a vote
+    const existingVote = await prisma.proposal_no_votes.findUnique({
+      where: { hash: txDetails.hashRev }
+    });
+
+    if (existingVote) {
+      logger.warn({ 
+        transaction_hash: txDetails.hashRev,
+        proposal_id: existingVote.proposal_id 
+      }, 'Transaction hash already used for a vote');
+      res.status(400).json({ 
+        error: 'This transaction has already been used for voting',
+        details: {
+          proposal_id: existingVote.proposal_id,
+          vote_id: existingVote.id,
+          created: existingVote.created
+        }
+      });
+      return;
+    }
+
+    // Validate transaction details
+    if (!txDetails.amt) {
+      logger.warn({ txDetails }, 'Transaction amount is missing');
+      res.status(400).json({ error: 'Invalid transaction: amount is missing' });
+      return;
+    }
+
+    if (!txDetails.from) {
+      logger.warn({ txDetails }, 'Transaction from address is missing');
+      res.status(400).json({ error: 'Invalid transaction: sender address is missing' });
+      return;
+    }
+
+    if (!txDetails.mtsAdd) {
+      logger.warn({ txDetails }, 'Transaction timestamp is missing');
+      res.status(400).json({ error: 'Invalid transaction: timestamp is missing' });
+      return;
+    }
+
+    // Validate it's a governance token transfer
+    if (txDetails.tick !== GOV_TOKEN_TICKER || txDetails.op !== 'transfer') {
+      logger.warn({ txDetails }, `Invalid transaction: not a ${GOV_TOKEN_TICKER} transfer`);
+      res.status(400).json({ error: `Invalid transaction: must be a ${GOV_TOKEN_TICKER} transfer` });
+      return;
+    }
+
+    // Validate the transaction is accepted
+    if (txDetails.txAccept !== '1' || txDetails.opAccept !== '1') {
+      logger.warn({ txDetails }, 'Transaction not accepted');
+      res.status(400).json({ error: 'Transaction not accepted' });
       return;
     }
 
@@ -389,36 +586,60 @@ export const submitProposalNoVote = async (req: Request, res: Response): Promise
     const rawAmount = BigInt(txDetails.amt);
     const amountForCalc = Number(rawAmount) / Math.pow(10, 8);
     const amountForStorage = new Decimal(txDetails.amt).div(Math.pow(10, 8));
+    
+    logger.debug({ 
+      rawAmount: txDetails.amt,
+      amountForCalc,
+      amountForStorage: amountForStorage.toString()
+    }, 'Amount conversion details');
 
     // Get proposal to check voting period
     const proposal = await prisma.proposals.findUnique({
       where: { id: proposal_id }
     });
+    
     if (!proposal) {
+      logger.warn({ proposal_id }, 'Proposal not found');
       res.status(404).json({ error: 'Proposal not found' });
       return;
     }
+
+    logger.debug({ proposal }, 'Proposal found');
 
     // Validate voting period using properly converted timestamp
     const txTime = new Date(parseInt(txDetails.mtsAdd));
     const openVote = proposal.openvote ? new Date(proposal.openvote) : null;
     const closeVote = proposal.closevote ? new Date(proposal.closevote) : null;
 
+    logger.debug({ 
+      txTime,
+      openVote,
+      closeVote
+    }, 'Vote timing details');
+
     if (!openVote || !closeVote) {
+      logger.warn({ proposal_id }, 'Voting period not set for this proposal');
       res.status(400).json({ error: 'Voting period not set for this proposal' });
       return;
     }
 
     if (txTime < openVote || txTime > closeVote) {
+      logger.warn({ 
+        txTime,
+        openVote,
+        closeVote,
+        proposal_id 
+      }, 'Transaction timestamp outside voting period');
       res.status(400).json({ error: 'Transaction timestamp outside voting period' });
       return;
     }
 
     // Calculate vote weight using the precise amount
     const voteWeight = calculateVoteWeight(amountForCalc);
+    logger.debug({ voteWeight }, 'Vote weight calculated');
     
     // Create the vote with converted amount and blockchain hash
-    const vote = await createProposalNoVote({
+    const voteData = {
       proposal_id,
       hash: txDetails.hashRev,
       toaddress: NO_ADDRESS,
@@ -427,17 +648,68 @@ export const submitProposalNoVote = async (req: Request, res: Response): Promise
       votescounted: voteWeight.votes,
       validvote: true,
       proposal_snapshot_id: proposal.snapshot || undefined
-    });
+    };
     
-    res.status(200).json({
-      id: vote.id,
-      votes: voteWeight.votes,
-      powerLevel: voteWeight.powerLevel,
-      transaction_hash: txDetails.hashRev
-    });
-  } catch (error) {
-    logger.error('Error in submitProposalNoVote:', error);
-    res.status(500).json({ error: 'Failed to submit no vote' });
+    logger.debug({ voteData }, 'Attempting to create vote');
+    
+    try {
+      const vote = await createProposalNoVote(voteData);
+      
+      logger.info({ 
+        voteId: vote.id,
+        votes: voteWeight.votes,
+        powerLevel: voteWeight.powerLevel,
+        transaction_hash: txDetails.hashRev
+      }, 'Vote created successfully');
+      
+      res.status(200).json({
+        id: vote.id,
+        votes: voteWeight.votes,
+        powerLevel: voteWeight.powerLevel,
+        transaction_hash: txDetails.hashRev
+      });
+    } catch (voteError: any) {
+      // Check if this is a unique constraint error
+      if (voteError?.name === 'PrismaClientKnownRequestError' && voteError?.code === 'P2002') {
+        logger.warn({ 
+          transaction_hash: txDetails.hashRev,
+          proposal_id,
+          error: voteError 
+        }, 'Duplicate vote attempt');
+        res.status(400).json({ 
+          error: 'This transaction has already been used for voting'
+        });
+        return;
+      }
+
+      logger.error({
+        error: {
+          message: voteError?.message || 'Unknown error in vote creation',
+          stack: voteError?.stack,
+          name: voteError?.name
+        },
+        voteData
+      }, 'Error creating vote');
+      throw voteError;
+    }
+  } catch (error: any) {
+    logger.error({ 
+      error: {
+        message: error?.message || 'Unknown error',
+        stack: error?.stack,
+        name: error?.name
+      },
+      request: {
+        body: req.body,
+        query: req.query,
+        params: req.params
+      }
+    }, 'Error in submitProposalNoVote');
+    
+    // If we haven't already sent a response, send a 500
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to submit no vote' });
+    }
   }
 };
 
