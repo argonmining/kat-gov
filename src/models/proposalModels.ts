@@ -247,7 +247,9 @@ export const getProposalById = async (id: number): Promise<Proposal | null> => {
       include: {
         proposal_statuses: true,
         proposal_wallets_proposals_walletToproposal_wallets: true,
-        proposal_types: true
+        proposal_types: true,
+        proposal_yes_votes_proposal_yes_votes_proposal_idToproposals: true,
+        proposal_no_votes_proposal_no_votes_proposal_idToproposals: true
       }
     });
 
@@ -268,7 +270,9 @@ export const getProposalById = async (id: number): Promise<Proposal | null> => {
           id: result.proposal_types.id,
           name: result.proposal_types.name,
           simplevote: result.proposal_types.simplevote
-        } : null
+        } : null,
+        yes_votes: result.proposal_yes_votes_proposal_yes_votes_proposal_idToproposals || [],
+        no_votes: result.proposal_no_votes_proposal_no_votes_proposal_idToproposals || []
       };
 
       logger.debug({ id }, 'Proposal retrieved successfully');
@@ -360,6 +364,33 @@ export const createProposalYesVote = async (vote: Omit<ProposalYesVote, 'id' | '
 
     logger.info({ proposal_id, toaddress, fromaddress, amountsent }, 'Creating proposal yes vote');
 
+    // Check for existing votes in both yes and no vote tables
+    const existingYesVote = await prisma.proposal_yes_votes.findFirst({
+      where: {
+        OR: [
+          { hash },
+          { AND: [{ fromaddress }, { proposal_id }] }
+        ]
+      }
+    });
+
+    if (existingYesVote) {
+      throw new Error('A yes vote with this transaction hash or from this address already exists for this proposal');
+    }
+
+    const existingNoVote = await prisma.proposal_no_votes.findFirst({
+      where: {
+        OR: [
+          { hash },
+          { AND: [{ fromaddress }, { proposal_id }] }
+        ]
+      }
+    });
+
+    if (existingNoVote) {
+      throw new Error('A no vote with this transaction hash or from this address already exists for this proposal');
+    }
+
     // Get proposal and its snapshot
     const proposal = await getProposalById(proposal_id);
     if (!proposal || !proposal.snapshot) {
@@ -440,6 +471,33 @@ export const createProposalNoVote = async (vote: Omit<ProposalNoVote, 'id' | 'cr
     }
 
     logger.info({ proposal_id, toaddress, fromaddress, amountsent }, 'Creating proposal no vote');
+
+    // Check for existing votes in both yes and no vote tables
+    const existingNoVote = await prisma.proposal_no_votes.findFirst({
+      where: {
+        OR: [
+          { hash },
+          { AND: [{ fromaddress }, { proposal_id }] }
+        ]
+      }
+    });
+
+    if (existingNoVote) {
+      throw new Error('A no vote with this transaction hash or from this address already exists for this proposal');
+    }
+
+    const existingYesVote = await prisma.proposal_yes_votes.findFirst({
+      where: {
+        OR: [
+          { hash },
+          { AND: [{ fromaddress }, { proposal_id }] }
+        ]
+      }
+    });
+
+    if (existingYesVote) {
+      throw new Error('A yes vote with this transaction hash or from this address already exists for this proposal');
+    }
 
     // Get proposal and its snapshot
     const proposal = await getProposalById(proposal_id);
