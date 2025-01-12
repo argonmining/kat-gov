@@ -170,6 +170,7 @@ model proposal_no_votes {
   created                                            DateTime?           @db.Timestamptz(6)
   hash                                               String?             @unique @db.VarChar(255)
   toaddress                                          String?             @db.VarChar(255)
+  fromaddress                                        String?             @db.VarChar(255)
   amountsent                                         Decimal?            @db.Decimal
   votescounted                                       Int?
   validvote                                          Boolean?
@@ -178,6 +179,8 @@ model proposal_no_votes {
   proposals_proposal_no_votes_proposal_idToproposals proposals?          @relation("proposal_no_votes_proposal_idToproposals", fields: [proposal_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   proposal_snapshots                                 proposal_snapshots? @relation(fields: [proposal_snapshot_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   proposals_proposals_no_votesToproposal_no_votes    proposals[]         @relation("proposals_no_votesToproposal_no_votes")
+
+  @@unique([fromaddress, proposal_id])
 }
 
 model proposal_nominations {
@@ -236,6 +239,7 @@ model proposal_yes_votes {
   created                                             DateTime?           @db.Timestamptz(6)
   hash                                                String?             @unique @db.VarChar(255)
   toaddress                                           String?             @db.VarChar(255)
+  fromaddress                                         String?             @db.VarChar(255)
   amountsent                                          Decimal?            @db.Decimal
   votescounted                                        Int?
   validvote                                           Boolean?
@@ -244,6 +248,8 @@ model proposal_yes_votes {
   proposals_proposal_yes_votes_proposal_idToproposals proposals?          @relation("proposal_yes_votes_proposal_idToproposals", fields: [proposal_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   proposal_snapshots                                  proposal_snapshots? @relation(fields: [proposal_snapshot_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   proposals_proposals_yes_votesToproposal_yes_votes   proposals[]         @relation("proposals_yes_votesToproposal_yes_votes")
+
+  @@unique([fromaddress, proposal_id])
 }
 
 model proposals {

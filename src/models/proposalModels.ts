@@ -353,12 +353,12 @@ export const getAllProposalYesVotes = async (): Promise<ProposalYesVote[]> => {
 
 export const createProposalYesVote = async (vote: Omit<ProposalYesVote, 'id' | 'created'>): Promise<ProposalYesVote> => {
   try {
-    const { proposal_id, toaddress, amountsent } = vote;
-    if (!proposal_id || !toaddress || !amountsent) {
+    const { proposal_id, toaddress, fromaddress, amountsent, hash, proposal_snapshot_id } = vote;
+    if (!proposal_id || !toaddress || !fromaddress || !amountsent) {
       throw new Error('Missing required fields for vote');
     }
 
-    logger.info({ proposal_id, toaddress, amountsent }, 'Creating proposal yes vote');
+    logger.info({ proposal_id, toaddress, fromaddress, amountsent }, 'Creating proposal yes vote');
 
     // Get proposal and its snapshot
     const proposal = await getProposalById(proposal_id);
@@ -375,7 +375,7 @@ export const createProposalYesVote = async (vote: Omit<ProposalYesVote, 'id' | '
     }
 
     // Validate amount against snapshot
-    const isValid = await validateVoteAmount(toaddress, amountsent, snapshot.data);
+    const isValid = await validateVoteAmount(fromaddress, amountsent, snapshot.data);
     if (!isValid) {
       throw new Error('Invalid vote amount: insufficient balance at snapshot time');
     }
@@ -387,7 +387,9 @@ export const createProposalYesVote = async (vote: Omit<ProposalYesVote, 'id' | '
       data: {
         proposal_id,
         toaddress,
+        fromaddress,
         amountsent,
+        hash,
         votescounted: voteWeight.votes,
         validvote: true,
         proposal_snapshot_id: Number(proposal.snapshot),
@@ -432,12 +434,12 @@ export const getAllProposalNoVotes = async (): Promise<ProposalNoVote[]> => {
 
 export const createProposalNoVote = async (vote: Omit<ProposalNoVote, 'id' | 'created'>): Promise<ProposalNoVote> => {
   try {
-    const { proposal_id, toaddress, amountsent } = vote;
-    if (!proposal_id || !toaddress || !amountsent) {
+    const { proposal_id, toaddress, fromaddress, amountsent, hash, proposal_snapshot_id } = vote;
+    if (!proposal_id || !toaddress || !fromaddress || !amountsent) {
       throw new Error('Missing required fields for vote');
     }
 
-    logger.info({ proposal_id, toaddress, amountsent }, 'Creating proposal no vote');
+    logger.info({ proposal_id, toaddress, fromaddress, amountsent }, 'Creating proposal no vote');
 
     // Get proposal and its snapshot
     const proposal = await getProposalById(proposal_id);
@@ -454,7 +456,7 @@ export const createProposalNoVote = async (vote: Omit<ProposalNoVote, 'id' | 'cr
     }
 
     // Validate amount against snapshot
-    const isValid = await validateVoteAmount(toaddress, amountsent, snapshot.data);
+    const isValid = await validateVoteAmount(fromaddress, amountsent, snapshot.data);
     if (!isValid) {
       throw new Error('Invalid vote amount: insufficient balance at snapshot time');
     }
@@ -466,7 +468,9 @@ export const createProposalNoVote = async (vote: Omit<ProposalNoVote, 'id' | 'cr
       data: {
         proposal_id,
         toaddress,
+        fromaddress,
         amountsent,
+        hash,
         votescounted: voteWeight.votes,
         validvote: true,
         proposal_snapshot_id: Number(proposal.snapshot),

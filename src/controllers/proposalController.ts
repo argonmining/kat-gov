@@ -342,7 +342,8 @@ export const submitProposalYesVote = async (req: Request, res: Response): Promis
     const vote = await createProposalYesVote({
       proposal_id,
       hash: txDetails.hashRev,
-      toaddress: txDetails.fromAddress,
+      toaddress: YES_ADDRESS,
+      fromaddress: txDetails.from,
       amountsent: amountForStorage,
       votescounted: voteWeight.votes,
       validvote: true,
@@ -420,7 +421,8 @@ export const submitProposalNoVote = async (req: Request, res: Response): Promise
     const vote = await createProposalNoVote({
       proposal_id,
       hash: txDetails.hashRev,
-      toaddress: txDetails.fromAddress,
+      toaddress: NO_ADDRESS,
+      fromaddress: txDetails.from,
       amountsent: amountForStorage,
       votescounted: voteWeight.votes,
       validvote: true,
