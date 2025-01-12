@@ -49,7 +49,8 @@ import { proposalSubmissionFee, proposalNominationFee } from '../utils/tokenCalc
 import { createKaspaWallet } from '../utils/walletUtils.js';
 import { calculateVoteWeight } from '../utils/voteCalculator.js';
 import { config, GOV_ADDRESS, YES_ADDRESS, NO_ADDRESS, GOV_TOKEN_TICKER } from '../config/env.js';
-import { getKRC20OperationList } from '../services/kasplexAPI.js';
+import { getKRC20OperationList, getKRC20OperationDetails } from '../services/kasplexAPI.js';
+import { prisma } from '../config/prisma.js';
 
 interface KRC20Operation {
   p: string;
@@ -296,25 +297,67 @@ export const fetchAllProposalYesVotes = async (req: Request, res: Response): Pro
 
 export const submitProposalYesVote = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { proposal_id, toaddress, amountsent } = req.body;
-    logger.info({ proposal_id, toaddress, amountsent }, 'Submitting proposal yes vote');
+    const { proposal_id, transaction_hash } = req.body;
     
-    // Calculate vote weight
-    const voteWeight = calculateVoteWeight(amountsent);
-    
-    const newVote = await createProposalYesVote({
-      proposal_id,
-      toaddress,
-      amountsent: new Decimal(amountsent.toString()),
-      votescounted: voteWeight.votes,
-      validvote: true
-    });
+    // Get transaction details first
+    const txDetails = await getKRC20OperationDetails(transaction_hash);
+    if (!txDetails) {
+      res.status(400).json({ error: 'Transaction not found or not confirmed' });
+      return;
+    }
 
-    logger.info({ voteId: newVote.id }, 'Yes vote submitted successfully');
-    res.status(201).json(newVote);
+    // Convert amount from 8 decimal places using string operations to avoid floating point issues
+    const rawAmount = BigInt(txDetails.amt);
+    const amountForCalc = Number(rawAmount) / Math.pow(10, 8);
+    const amountForStorage = new Decimal(txDetails.amt).div(Math.pow(10, 8));
+
+    // Get proposal to check voting period
+    const proposal = await prisma.proposals.findUnique({
+      where: { id: proposal_id }
+    });
+    if (!proposal) {
+      res.status(404).json({ error: 'Proposal not found' });
+      return;
+    }
+
+    // Validate voting period using properly converted timestamp
+    const txTime = new Date(parseInt(txDetails.mtsAdd));
+    const openVote = proposal.openvote ? new Date(proposal.openvote) : null;
+    const closeVote = proposal.closevote ? new Date(proposal.closevote) : null;
+
+    if (!openVote || !closeVote) {
+      res.status(400).json({ error: 'Voting period not set for this proposal' });
+      return;
+    }
+
+    if (txTime < openVote || txTime > closeVote) {
+      res.status(400).json({ error: 'Transaction timestamp outside voting period' });
+      return;
+    }
+
+    // Calculate vote weight using the precise amount
+    const voteWeight = calculateVoteWeight(amountForCalc);
+    
+    // Create the vote with converted amount and blockchain hash
+    const vote = await createProposalYesVote({
+      proposal_id,
+      hash: txDetails.hashRev,
+      toaddress: txDetails.fromAddress,
+      amountsent: amountForStorage,
+      votescounted: voteWeight.votes,
+      validvote: true,
+      proposal_snapshot_id: proposal.snapshot || undefined
+    });
+    
+    res.status(200).json({
+      id: vote.id,
+      votes: voteWeight.votes,
+      powerLevel: voteWeight.powerLevel,
+      transaction_hash: txDetails.hashRev
+    });
   } catch (error) {
-    logger.error({ error, vote: req.body }, 'Error submitting yes vote');
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
+    logger.error('Error in submitProposalYesVote:', error);
+    res.status(500).json({ error: 'Failed to submit yes vote' });
   }
 };
 
@@ -332,25 +375,67 @@ export const fetchAllProposalNoVotes = async (req: Request, res: Response): Prom
 
 export const submitProposalNoVote = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { proposal_id, toaddress, amountsent } = req.body;
-    logger.info({ proposal_id, toaddress, amountsent }, 'Submitting proposal no vote');
+    const { proposal_id, transaction_hash } = req.body;
     
-    // Calculate vote weight
-    const voteWeight = calculateVoteWeight(amountsent);
-    
-    const newVote = await createProposalNoVote({
-      proposal_id,
-      toaddress,
-      amountsent: new Decimal(amountsent.toString()),
-      votescounted: voteWeight.votes,
-      validvote: true
-    });
+    // Get transaction details first
+    const txDetails = await getKRC20OperationDetails(transaction_hash);
+    if (!txDetails) {
+      res.status(400).json({ error: 'Transaction not found or not confirmed' });
+      return;
+    }
 
-    logger.info({ voteId: newVote.id }, 'No vote submitted successfully');
-    res.status(201).json(newVote);
+    // Convert amount from 8 decimal places using string operations to avoid floating point issues
+    const rawAmount = BigInt(txDetails.amt);
+    const amountForCalc = Number(rawAmount) / Math.pow(10, 8);
+    const amountForStorage = new Decimal(txDetails.amt).div(Math.pow(10, 8));
+
+    // Get proposal to check voting period
+    const proposal = await prisma.proposals.findUnique({
+      where: { id: proposal_id }
+    });
+    if (!proposal) {
+      res.status(404).json({ error: 'Proposal not found' });
+      return;
+    }
+
+    // Validate voting period using properly converted timestamp
+    const txTime = new Date(parseInt(txDetails.mtsAdd));
+    const openVote = proposal.openvote ? new Date(proposal.openvote) : null;
+    const closeVote = proposal.closevote ? new Date(proposal.closevote) : null;
+
+    if (!openVote || !closeVote) {
+      res.status(400).json({ error: 'Voting period not set for this proposal' });
+      return;
+    }
+
+    if (txTime < openVote || txTime > closeVote) {
+      res.status(400).json({ error: 'Transaction timestamp outside voting period' });
+      return;
+    }
+
+    // Calculate vote weight using the precise amount
+    const voteWeight = calculateVoteWeight(amountForCalc);
+    
+    // Create the vote with converted amount and blockchain hash
+    const vote = await createProposalNoVote({
+      proposal_id,
+      hash: txDetails.hashRev,
+      toaddress: txDetails.fromAddress,
+      amountsent: amountForStorage,
+      votescounted: voteWeight.votes,
+      validvote: true,
+      proposal_snapshot_id: proposal.snapshot || undefined
+    });
+    
+    res.status(200).json({
+      id: vote.id,
+      votes: voteWeight.votes,
+      powerLevel: voteWeight.powerLevel,
+      transaction_hash: txDetails.hashRev
+    });
   } catch (error) {
-    logger.error({ error, vote: req.body }, 'Error submitting no vote');
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
+    logger.error('Error in submitProposalNoVote:', error);
+    res.status(500).json({ error: 'Failed to submit no vote' });
   }
 };
 
