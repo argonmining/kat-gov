@@ -169,7 +169,9 @@ export const modifyProposal = async (req: Request, res: Response, next: NextFunc
       reviewed: req.body.reviewed,
       approved: req.body.approved,
       passed: req.body.passed,
-      votesactive: req.body.votesActive
+      votesactive: req.body.votesActive,
+      openvote: req.body.openvote,
+      closevote: req.body.closevote
     };
 
     logger.info({ proposalId, updates: updateData }, 'Modifying proposal');
@@ -178,7 +180,7 @@ export const modifyProposal = async (req: Request, res: Response, next: NextFunc
     if (updatedProposal) {
       // Fetch fresh data with all relations
       const completeProposal = await getProposalById(proposalId);
-      logger.info({ proposalId }, 'Proposal updated successfully');
+      logger.info({ proposalId, dates: { openvote: updateData.openvote, closevote: updateData.closevote } }, 'Proposal updated successfully');
       res.status(200).json(completeProposal);
     } else {
       logger.warn({ proposalId }, 'Proposal not found');
