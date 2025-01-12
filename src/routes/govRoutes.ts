@@ -7,6 +7,9 @@ import * as burnController from '../controllers/burnController.js';
 import * as treasuryController from '../controllers/treasuryController.js';
 import * as cleanupController from '../controllers/cleanupController.js';
 import * as candidateController from '../controllers/candidateController.js';
+import { runDraftCleanup } from '../scheduler/deleteOldDraftProposals.js';
+import activateProposalVoting from '../scheduler/activateProposalVoting.js';
+import { getTreasuryTransactions } from '../scheduler/getTreasuryTransactions.js';
 
 const router = Router();
 const logger = createModuleLogger('govRoutes');
@@ -176,6 +179,62 @@ router.get('/treasury/wallet/:address/transactions', treasuryController.getWalle
 // ============================================================================
 
 router.post('/cleanup/draft-proposals', cleanupController.cleanupDraftProposals);
+
+// Manual scheduler triggers
+router.post('/scheduler/run/draft-cleanup', async (req: Request, res: Response) => {
+    try {
+        logger.info('Manual trigger: draft cleanup');
+        const result = await runDraftCleanup();
+        res.status(200).json({ 
+            success: true, 
+            message: 'Draft cleanup completed successfully',
+            deletedCount: result 
+        });
+    } catch (error) {
+        logger.error({ error }, 'Manual draft cleanup failed');
+        res.status(500).json({ 
+            success: false, 
+            message: 'Draft cleanup failed',
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+router.post('/scheduler/run/proposal-voting', async (req: Request, res: Response) => {
+    try {
+        logger.info('Manual trigger: proposal voting activation');
+        await activateProposalVoting();
+        res.status(200).json({ 
+            success: true, 
+            message: 'Proposal voting activation completed successfully' 
+        });
+    } catch (error) {
+        logger.error({ error }, 'Manual proposal voting activation failed');
+        res.status(500).json({ 
+            success: false, 
+            message: 'Proposal voting activation failed',
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+router.post('/scheduler/run/treasury-transactions', async (req: Request, res: Response) => {
+    try {
+        logger.info('Manual trigger: treasury transactions fetch');
+        await getTreasuryTransactions();
+        res.status(200).json({ 
+            success: true, 
+            message: 'Treasury transactions fetch completed successfully' 
+        });
+    } catch (error) {
+        logger.error({ error }, 'Manual treasury transactions fetch failed');
+        res.status(500).json({ 
+            success: false, 
+            message: 'Treasury transactions fetch failed',
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
 
 // Apply error handling middleware last
 router.use(errorHandler);

@@ -5,6 +5,7 @@ import * as kasplexAPI from '../services/kasplexAPI.js';
 import * as kaspaAPI from '../services/kaspaAPI.js';
 import { Decimal } from 'decimal.js';
 import cron from 'node-cron';
+import { schedulerState } from './schedulerState.js';
 
 const prisma = new PrismaClient();
 const logger = createModuleLogger('getTreasuryTransactions');
@@ -218,37 +219,38 @@ async function fetchAllKaspaTransactions(walletAddress: string): Promise<void> {
 }
 
 export async function getTreasuryTransactions() {
-    if (isTreasuryFetchRunning) {
-        logger.warn('Treasury transactions fetch already in progress, skipping');
-        return;
-    }
-
-    isTreasuryFetchRunning = true;
-    try {
-        logger.info('Starting treasury transactions fetch');
-        
-        const treasuryWallets = config.kaspa.treasuryWallets;
-        
-        for (const wallet of treasuryWallets) {
-            logger.info({ walletAddress: wallet.address, walletName: wallet.name }, 'Processing treasury wallet');
+    return schedulerState.runTask('treasuryTransactionsFetch', async () => {
+        try {
+            logger.info('Starting treasury transactions fetch');
             
-            try {
-                await fetchAllKasplexTransactions(wallet.address);
-                await fetchAllKaspaTransactions(wallet.address);
-            } catch (error) {
-                logger.error({ error, walletAddress: wallet.address, walletName: wallet.name }, 'Error processing wallet');
-                continue;
+            const treasuryWallets = config.kaspa.treasuryWallets;
+            
+            for (const wallet of treasuryWallets) {
+                logger.info({ walletAddress: wallet.address, walletName: wallet.name }, 'Processing treasury wallet');
+                
+                try {
+                    await fetchAllKasplexTransactions(wallet.address);
+                    await fetchAllKaspaTransactions(wallet.address);
+                } catch (error) {
+                    logger.error({ error, walletAddress: wallet.address, walletName: wallet.name }, 'Error processing wallet');
+                    continue;
+                }
             }
+            
+            logger.info('Completed treasury transactions fetch');
+        } catch (error) {
+            logger.error({
+                error: error instanceof Error ? {
+                    message: error.message,
+                    name: error.name,
+                    stack: error.stack
+                } : 'Unknown error'
+            }, 'Error in getTreasuryTransactions');
+            throw error;
+        } finally {
+            await prisma.$disconnect();
         }
-        
-        logger.info('Completed treasury transactions fetch');
-    } catch (error) {
-        logger.error({ error }, 'Error in getTreasuryTransactions');
-        throw error;
-    } finally {
-        isTreasuryFetchRunning = false;
-        await prisma.$disconnect();
-    }
+    });
 }
 
 // Run the task after a delay when the application starts
@@ -258,9 +260,16 @@ setTimeout(async () => {
         await getTreasuryTransactions();
         logger.info('Initial treasury transactions fetch completed successfully');
     } catch (error) {
-        logger.error({ error }, 'Initial treasury transactions fetch failed');
+        const errorDetails = error instanceof Error ? {
+            message: error.message,
+            name: error.name,
+            stack: error.stack,
+            timestamp: new Date().toISOString()
+        } : 'Unknown error';
+
+        logger.error({ error: errorDetails }, 'Initial treasury transactions fetch failed');
     }
-}, 30 * 60 * 1000); // 30 minutes (30 * 60 seconds * 1000 milliseconds)
+}, 30 * 60 * 1000); // 30 minutes
 
 // Schedule the task to run every 12 hours (at 0:00 and 12:00)
 cron.schedule('0 0,12 * * *', async () => {
@@ -269,6 +278,13 @@ cron.schedule('0 0,12 * * *', async () => {
         await getTreasuryTransactions();
         logger.info('Scheduled treasury transactions fetch completed successfully');
     } catch (error) {
-        logger.error({ error }, 'Scheduled treasury transactions fetch failed');
+        const errorDetails = error instanceof Error ? {
+            message: error.message,
+            name: error.name,
+            stack: error.stack,
+            timestamp: new Date().toISOString()
+        } : 'Unknown error';
+
+        logger.error({ error: errorDetails }, 'Scheduled treasury transactions fetch failed');
     }
 }); 

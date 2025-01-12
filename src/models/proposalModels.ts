@@ -827,7 +827,13 @@ export const deleteOldDraftProposals = async (): Promise<number> => {
           },
           {
             submitted: {
-              lt: new Date(Date.now() - 8 * 60 * 60 * 1000) // 8 hours ago
+              lt: new Date(Date.now() - 4 * 60 * 60 * 1000) // 4 hours ago
+            }
+          },
+          {
+            // Ensure proposal has no nominations
+            proposal_nominations: {
+              none: {}
             }
           }
         ]
@@ -837,8 +843,20 @@ export const deleteOldDraftProposals = async (): Promise<number> => {
     logger.info({ count: result.count }, 'Old draft proposals deleted successfully');
     return result.count;
   } catch (error) {
-    logger.error({ error }, 'Error deleting old draft proposals');
-    throw new Error('Could not delete old draft proposals');
+    // Properly serialize the error object
+    const serializedError = error instanceof Error ? {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+      // Add Prisma-specific error details if available
+      code: (error as any).code,
+      meta: (error as any).meta
+    } : 'Unknown error';
+
+    logger.error({ error: serializedError }, 'Error deleting old draft proposals');
+    
+    // Preserve the original error
+    throw error;
   }
 };
 
