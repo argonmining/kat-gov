@@ -1432,6 +1432,36 @@ export const verifyProposalEditWithExistingNomination = async (req: Request, res
       return;
     }
 
+    // Get the proposal with voting fields
+    const proposal = await prisma.proposals.findUnique({
+      where: { id: proposalId }
+    });
+
+    if (!proposal) {
+      logger.warn({ proposalId }, 'Proposal not found');
+      res.status(404).json({ error: 'Proposal not found' });
+      return;
+    }
+
+    // Check proposal state
+    if (proposal.openvote || proposal.closevote) {
+      logger.warn({ proposalId }, 'Cannot edit proposal after voting has started');
+      res.status(400).json({ error: 'Cannot edit proposal after voting has started' });
+      return;
+    }
+
+    if (proposal.votesactive) {
+      logger.warn({ proposalId }, 'Cannot edit proposal while voting is active');
+      res.status(400).json({ error: 'Cannot edit proposal while voting is active' });
+      return;
+    }
+
+    if (proposal.passed) {
+      logger.warn({ proposalId }, 'Cannot edit proposal that has passed');
+      res.status(400).json({ error: 'Cannot edit proposal that has passed' });
+      return;
+    }
+
     // Get the proposal's nominations ordered by creation date
     const nominations = await getNominationsForProposal(proposalId);
     if (!nominations || nominations.length === 0) {
@@ -1498,6 +1528,14 @@ export const verifyProposalEditWithExistingNomination = async (req: Request, res
         nominator: oldestNomination.fromaddress 
       }, 'Transaction sender does not match original nominator');
       res.status(403).json({ error: 'Only the original nominator can edit the proposal' });
+      return;
+    }
+
+    // Find the nomination with the matching hash
+    const verifiedNomination = nominations.find(nom => nom.hash === transactionHash);
+    if (!verifiedNomination) {
+      logger.warn({ transactionHash }, 'No nomination found with this transaction hash');
+      res.status(404).json({ error: 'No nomination found with this transaction hash' });
       return;
     }
 
