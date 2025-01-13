@@ -49,7 +49,6 @@ export interface CandidateNomination {
 export interface CandidateWallet {
   id: number;
   address: string;
-  encryptedprivatekey: string;
   balance: Decimal;
   created: Date;
   active: boolean;

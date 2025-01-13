@@ -1298,9 +1298,16 @@ components:
           type: integer
         address:
           type: string
+        balance:
+          type: number
+          format: decimal
         created:
           type: string
           format: date-time
+        active:
+          type: boolean
+        candidate_id:
+          type: integer
 
     CandidateWalletSubmission:
       type: object

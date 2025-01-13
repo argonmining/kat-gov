@@ -136,7 +136,16 @@ export const deleteCandidateNomination = async (id: number): Promise<void> => {
 export const getAllCandidateWallets = async (): Promise<CandidateWallet[]> => {
   try {
     logger.info('Fetching all candidate wallets');
-    const result = await prisma.candidate_wallets.findMany();
+    const result = await prisma.candidate_wallets.findMany({
+      select: {
+        id: true,
+        address: true,
+        balance: true,
+        created: true,
+        active: true,
+        candidate_id: true
+      }
+    });
     logger.debug({ count: result.length }, 'Retrieved all candidate wallets');
     return result as unknown as CandidateWallet[];
   } catch (error) {
