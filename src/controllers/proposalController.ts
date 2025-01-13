@@ -1406,4 +1406,92 @@ export const getNominationVerificationStatus = async (req: Request, res: Respons
     logger.error({ error, proposalId: req.params.id }, 'Error checking nomination status');
     next(error);
   }
+};
+
+// Verify proposal edit ownership
+export const verifyProposalEdit = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const proposalId = parseInt(req.params.id, 10);
+    const { transactionHash } = req.body;
+
+    if (isNaN(proposalId)) {
+      logger.warn({ proposalId: req.params.id }, 'Invalid proposal ID format');
+      res.status(400).json({ error: 'Invalid proposal ID' });
+      return;
+    }
+
+    if (!transactionHash) {
+      logger.warn('No transaction hash provided');
+      res.status(400).json({ error: 'Transaction hash is required' });
+      return;
+    }
+
+    // Get the proposal's nominations ordered by creation date
+    const nominations = await getNominationsForProposal(proposalId);
+    if (!nominations || nominations.length === 0) {
+      logger.warn({ proposalId }, 'No nominations found for proposal');
+      res.status(404).json({ error: 'No nominations found for proposal' });
+      return;
+    }
+
+    // Sort nominations by creation date and get the oldest one
+    const oldestNomination = nominations.sort((a, b) => {
+      const dateA = a.created ? new Date(a.created).getTime() : 0;
+      const dateB = b.created ? new Date(b.created).getTime() : 0;
+      return dateA - dateB;
+    })[0];
+
+    if (!oldestNomination.fromaddress) {
+      logger.warn({ proposalId }, 'Original nominator address not found');
+      res.status(404).json({ error: 'Original nominator address not found' });
+      return;
+    }
+
+    // Get the transaction details from Kasplex API
+    const operation = await getKRC20OperationDetails(transactionHash);
+    if (!operation) {
+      logger.warn({ transactionHash }, 'Transaction not found');
+      res.status(404).json({ error: 'Transaction not found' });
+      return;
+    }
+
+    // Verify the transaction is for the correct token and amount
+    const fee = await proposalNominationFee();
+    if (operation.tick !== GOV_TOKEN_TICKER || parseFloat(operation.amt) !== fee) {
+      logger.warn({ operation }, 'Invalid transaction details');
+      res.status(400).json({ error: 'Invalid transaction' });
+      return;
+    }
+
+    // Verify the sender matches the original nominator
+    if (operation.from.toLowerCase() !== oldestNomination.fromaddress.toLowerCase()) {
+      logger.warn({ 
+        from: operation.from, 
+        nominator: oldestNomination.fromaddress 
+      }, 'Transaction sender does not match original nominator');
+      res.status(403).json({ error: 'Only the original nominator can edit the proposal' });
+      return;
+    }
+
+    // Create a nomination record for the edit verification
+    const nomination = await createProposalNomination({
+      proposal_id: proposalId,
+      hash: transactionHash,
+      toaddress: operation.to,
+      fromaddress: operation.from,
+      amountsent: new Decimal(operation.amt),
+      validvote: true,
+      created: new Date()
+    });
+
+    logger.info({ proposalId, transactionHash }, 'Edit verification successful');
+    res.status(200).json({ 
+      status: 'completed',
+      nomination,
+      originalNominator: oldestNomination.fromaddress
+    });
+  } catch (error) {
+    logger.error({ error, proposalId: req.params.id }, 'Error verifying proposal edit');
+    next(error);
+  }
 }; 

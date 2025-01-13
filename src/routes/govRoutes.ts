@@ -90,20 +90,23 @@ router.get('/proposal/votes/yes', proposalController.fetchAllProposalYesVotes);
 router.post('/proposal/votes/yes', proposalController.submitProposalYesVote);
 router.get('/proposal/votes/no', proposalController.fetchAllProposalNoVotes);
 router.post('/proposal/votes/no', proposalController.submitProposalNoVote);
-router.get('/proposal/nomination/fee', proposalController.getNominationFee);
 router.post('/proposal/nomination/create', proposalController.verifyNominationTransaction);
+router.get('/proposal/nomination/fee', proposalController.getNominationFee);
 
-// Parameterized proposal routes
+// Parameterized proposal routes with specific actions first
+router.post('/proposal/:id/verify-edit', proposalController.verifyProposalEdit);
+router.get('/proposal/:id/votes', proposalController.fetchVotesForProposal);
+router.get('/proposal/:id/nominations', proposalController.fetchNominationsForProposal);
+router.get('/proposal/:id/nominations/count', proposalController.fetchNominationCount);
+router.get('/proposal/:id/nominations/status', proposalController.getNominationVerificationStatus);
+
+// Generic parameterized proposal routes
 router.put('/proposal/types/:id', proposalController.modifyProposalType);
 router.delete('/proposal/types/:id', proposalController.removeProposalType);
 router.put('/proposal/statuses/:id', proposalController.modifyProposalStatus);
 router.delete('/proposal/statuses/:id', proposalController.removeProposalStatus);
 router.get('/proposal/:id', proposalController.fetchProposalById);
 router.put('/proposal/:id', proposalController.modifyProposal);
-router.get('/proposal/:id/votes', proposalController.fetchVotesForProposal);
-router.get('/proposal/:id/nominations', proposalController.fetchNominationsForProposal);
-router.get('/proposal/:id/nominations/count', proposalController.fetchNominationCount);
-router.get('/proposal/:id/nominations/status', proposalController.getNominationVerificationStatus);
 
 // ============================================================================
 // Election Routes - Static First
