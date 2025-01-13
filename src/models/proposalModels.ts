@@ -133,7 +133,12 @@ export const getAllProposals = async (params: {
       include: {
         proposal_statuses: true,
         proposal_wallets_proposals_walletToproposal_wallets: true,
-        proposal_types: true
+        proposal_types: true,
+        proposal_nominations: {
+          select: {
+            id: true
+          }
+        }
       }
     });
 
@@ -141,6 +146,7 @@ export const getAllProposals = async (params: {
     const transformedResults = result.map(proposal => ({
       ...proposal,
       votesActive: proposal.votesactive,
+      nominations_count: proposal.proposal_nominations?.length || 0,
       proposal_wallets_proposals_walletToproposal_wallets: proposal.proposal_wallets_proposals_walletToproposal_wallets ? {
         address: proposal.proposal_wallets_proposals_walletToproposal_wallets.address
       } : null,
@@ -156,10 +162,10 @@ export const getAllProposals = async (params: {
       } : null
     }));
 
-    logger.debug({ count: result.length }, 'Retrieved proposals');
+    logger.debug({ count: result.length }, 'Proposals retrieved successfully');
     return transformedResults as unknown as Proposal[];
   } catch (error) {
-    logger.error({ error }, 'Error fetching proposals');
+    logger.error({ error, params }, 'Error fetching proposals');
     throw new Error('Could not fetch proposals');
   }
 };

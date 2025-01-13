@@ -20,6 +20,9 @@ export interface Proposal {
   votesActive?: boolean;
   passed?: boolean;
   wallet?: number;
+  yes_votes?: number;
+  no_votes?: number;
+  nominations_count?: number;
   proposal_wallets_proposals_walletToproposal_wallets?: {
     id?: number;
     address: string;
