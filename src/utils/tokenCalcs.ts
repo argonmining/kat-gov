@@ -13,13 +13,13 @@ const logger = createModuleLogger('tokenCalcs');
  * @throws {Error} If token price is zero
  * @returns {Promise<number>} The quantity of tokens required, with 8 decimal places precision
  */
-export async function proposalSubmissionFee(): Promise<number> {
+export async function proposalEditFee(): Promise<number> {
   try {
     logger.info('Calculating proposal submission fee');
-    const proposalSubmissionFeeUSD = config.proposals.submissionFeeUsd;
+    const proposaleditFeeUsd = config.proposals.editFeeUsd;
     const govTokenTicker = config.tokens.govTokenTicker;
     
-    logger.debug({ proposalSubmissionFeeUSD, govTokenTicker }, 'Fee calculation parameters');
+    logger.debug({ proposaleditFeeUsd, govTokenTicker }, 'Fee calculation parameters');
 
     if (!govTokenTicker) {
       throw new Error('GOV_TOKEN_TICKER is not defined in the configuration.');
@@ -29,10 +29,10 @@ export async function proposalSubmissionFee(): Promise<number> {
     logger.debug({ tokenPrice }, 'Retrieved token price');
 
     if (tokenPrice === 0) {
-      throw new Error('Token price is zero, cannot calculate proposal submission fee.');
+      throw new Error('Token price is zero, cannot calculate proposal edit fee.');
     }
 
-    const baseFee = proposalSubmissionFeeUSD / tokenPrice;
+    const baseFee = proposaleditFeeUsd / tokenPrice;
     const randomMultiplier = Math.random() * (1.10 - 0.95) + 0.95;
     const fee = Math.floor(baseFee) + (baseFee % 1) * randomMultiplier;
     const finalFee = Math.floor(fee * 1e8) / 1e8;
@@ -42,11 +42,11 @@ export async function proposalSubmissionFee(): Promise<number> {
       randomMultiplier,
       fee,
       finalFee
-    }, 'Proposal submission fee calculated');
+    }, 'Proposal edit fee calculated');
 
     return finalFee;
   } catch (error) {
-    logger.error({ error }, 'Error calculating proposal submission fee');
+    logger.error({ error }, 'Error calculating proposal edit fee');
     throw error;
   }
 }

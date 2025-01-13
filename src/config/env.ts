@@ -64,7 +64,7 @@ export const config = {
     encryptionKey: process.env.ENCRYPTION_KEY,
   },
   proposals: {
-    submissionFeeUsd: parseFloat(process.env.PROPOSAL_SUBMISSION_FEE_USD || '50'),
+    editFeeUsd: parseFloat(process.env.PROPOSAL_EDIT_FEE_USD || '50'),
     nominationFeeUsd: parseFloat(process.env.PROPOSAL_NOMINATION_FEE_USD || '50'),
     votingFeeMin: process.env.VOTING_FEE_MIN ? parseFloat(process.env.VOTING_FEE_MIN) : 0.1,
     votingFeeMax: process.env.VOTING_FEE_MAX ? parseFloat(process.env.VOTING_FEE_MAX) : 100000,

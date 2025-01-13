@@ -71,6 +71,7 @@ router.get('/proposal/statuses', proposalController.fetchAllProposalStatuses);
 router.get('/proposal/votes/yes', proposalController.fetchAllProposalYesVotes);
 router.get('/proposal/votes/no', proposalController.fetchAllProposalNoVotes);
 router.get('/proposal/nomination/fee', proposalController.getNominationFee);
+router.get('/proposal/edit/fee', proposalController.getEditFee);
 
 // Create endpoints
 router.post('/proposal', proposalController.submitProposal);

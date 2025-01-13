@@ -110,7 +110,7 @@
  *         proposals:
  *           type: object
  *           properties:
- *             submissionFeeUsd:
+ *             editFeeUsd:
  *               type: number
  *               description: The fee in USD for submitting a proposal
  *             nominationFeeUsd:
@@ -183,7 +183,7 @@ export interface SwaggerProposalStatus {
 export interface SwaggerConfig {
   govTokenTicker: string;
   proposals: {
-    submissionFeeUsd: number;
+    editFeeUsd: number;
     nominationFeeUsd: number;
     votingFeeMin: number;
     votingFeeMax: number;

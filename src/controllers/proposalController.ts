@@ -45,7 +45,7 @@ import {
   ProposalSnapshot,
   ProposalWallet
 } from '../types/proposalTypes.js';
-import { proposalSubmissionFee, proposalNominationFee } from '../utils/tokenCalcs.js';
+import { proposalEditFee, proposalNominationFee } from '../utils/tokenCalcs.js';
 import { createKaspaWallet } from '../utils/walletUtils.js';
 import { calculateVoteWeight } from '../utils/voteCalculator.js';
 import { config, GOV_ADDRESS, YES_ADDRESS, NO_ADDRESS, GOV_TOKEN_TICKER } from '../config/env.js';
@@ -989,7 +989,7 @@ export const qualifyProposal = async (req: Request, res: Response, next: NextFun
     }
 
     logger.debug('Calculating proposal submission fee');
-    const fee = await proposalSubmissionFee();
+    const fee = await proposalEditFee();
 
     logger.info({ proposalId, fee, wallet: proposalWithWallet.wallet }, 'Proposal qualified successfully');
     res.status(200).json({
@@ -1130,7 +1130,7 @@ export const getGovConfig = async (req: Request, res: Response): Promise<void> =
     const govConfig = {
       govTokenTicker: config.tokens.govTokenTicker,
       proposals: {
-        submissionFeeUsd: config.proposals.submissionFeeUsd,
+        editFeeUsd: config.proposals.editFeeUsd,
         nominationFeeUsd: config.proposals.nominationFeeUsd,
         votingFeeMin: config.proposals.votingFeeMin,
         votingFeeMax: config.proposals.votingFeeMax
@@ -1158,6 +1158,19 @@ export const getNominationFee = async (req: Request, res: Response, next: NextFu
     logger.info('Fetching nomination fee');
     const fee = await proposalNominationFee();
     logger.debug({ fee }, 'Nomination fee retrieved successfully');
+    res.status(200).json({ fee });
+  } catch (error) {
+    logger.error({ error }, 'Error fetching nomination fee');
+    next(error);
+  }
+};
+
+// Proposal Edit Fee Functions
+export const getEditFee = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    logger.info('Fetching proposal edit fee');
+    const fee = await proposalEditFee();
+    logger.debug({ fee }, 'Proposal edit fee retrieved successfully');
     res.status(200).json({ fee });
   } catch (error) {
     logger.error({ error }, 'Error fetching nomination fee');
