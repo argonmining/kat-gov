@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { createModuleLogger } from '../utils/logger.js';
 import { Decimal } from '@prisma/client/runtime/library';
+import { prisma } from '../config/prisma.js';
 import {
   createElection,
   getAllElections,
@@ -532,5 +533,38 @@ export const createElectionPrimaryHandler = async (req: Request, res: Response):
     res.status(500).json({ 
       error: error.message || 'Failed to create election primary' 
     });
+  }
+};
+
+export const fetchElectionPrimaryById = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    logger.info({ id }, 'Fetching primary election by ID');
+
+    // Get the election and check if it's a primary
+    const primary = await prisma.election_primaries.findFirst({
+      where: {
+        election_id: id
+      },
+      include: {
+        election: {
+          include: {
+            election_types: true,
+            election_positions: true,
+            election_statuses: true
+          }
+        }
+      }
+    });
+
+    if (!primary) {
+      res.status(404).json({ error: 'Primary election not found' });
+      return;
+    }
+
+    res.status(200).json(primary);
+  } catch (error) {
+    logger.error({ error }, 'Error fetching primary election by ID');
+    res.status(500).json({ error: 'Internal server error' });
   }
 }; 

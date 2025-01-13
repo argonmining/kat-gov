@@ -121,10 +121,11 @@ router.post('/election/candidate/nominations', candidateController.submitCandida
 router.post('/election/candidate/votes', candidateController.submitCandidateVote);
 
 // Parameterized endpoints
+router.post('/election/:electionId/primary', electionController.createElectionPrimaryHandler);
+router.get('/election/:id/primary', electionController.fetchElectionPrimaryById);
 router.get('/election/:id', electionController.fetchElectionById);
 router.put('/election/:id', electionController.modifyElection);
 router.delete('/election/:id', electionController.removeElection);
-router.post('/election/:electionId/primary', electionController.createElectionPrimaryHandler);
 
 // Type, status, and position management
 router.put('/election/types/:id', electionController.modifyElectionType);
