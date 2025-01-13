@@ -94,7 +94,7 @@ router.post('/proposal/nomination/create', proposalController.verifyNominationTr
 router.get('/proposal/nomination/fee', proposalController.getNominationFee);
 
 // Parameterized proposal routes with specific actions first
-router.post('/proposal/:id/verify-edit', proposalController.verifyProposalEdit);
+router.post('/proposal/:id/verify-edit', proposalController.verifyProposalEditWithExistingNomination);
 router.get('/proposal/:id/votes', proposalController.fetchVotesForProposal);
 router.get('/proposal/:id/nominations', proposalController.fetchNominationsForProposal);
 router.get('/proposal/:id/nominations/count', proposalController.fetchNominationCount);

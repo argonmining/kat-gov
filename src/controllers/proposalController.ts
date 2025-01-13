@@ -1408,11 +1408,11 @@ export const getNominationVerificationStatus = async (req: Request, res: Respons
   }
 };
 
-// Verify proposal edit ownership
-export const verifyProposalEdit = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+// Verify proposal edit for existing nominator
+export const verifyProposalEditWithExistingNomination = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const proposalId = parseInt(req.params.id, 10);
-    const { transactionHash } = req.body;
+    const { transactionHash, fee } = req.body;
 
     if (isNaN(proposalId)) {
       logger.warn({ proposalId: req.params.id }, 'Invalid proposal ID format');
@@ -1423,6 +1423,12 @@ export const verifyProposalEdit = async (req: Request, res: Response, next: Next
     if (!transactionHash) {
       logger.warn('No transaction hash provided');
       res.status(400).json({ error: 'Transaction hash is required' });
+      return;
+    }
+
+    if (!fee) {
+      logger.warn('No fee provided');
+      res.status(400).json({ error: 'Fee is required' });
       return;
     }
 
@@ -1448,17 +1454,39 @@ export const verifyProposalEdit = async (req: Request, res: Response, next: Next
     }
 
     // Get the transaction details from Kasplex API
-    const operation = await getKRC20OperationDetails(transactionHash);
-    if (!operation) {
+    const response = await getKRC20OperationDetails(transactionHash);
+    if (!response || !response.result || !Array.isArray(response.result) || response.result.length === 0) {
       logger.warn({ transactionHash }, 'Transaction not found');
       res.status(404).json({ error: 'Transaction not found' });
       return;
     }
 
+    const operation = response.result[0];
+    if (!operation) {
+      logger.warn({ transactionHash }, 'Transaction details not found');
+      res.status(404).json({ error: 'Transaction details not found' });
+      return;
+    }
+
+    // Convert fee to sats for comparison with transaction amount
+    const feeInSats = new Decimal(fee).mul(new Decimal('100000000')).toString();
+    logger.debug({ 
+      feeInSats,
+      transactionAmount: operation.amt,
+      originalFee: fee 
+    }, 'Amount comparison details');
+
     // Verify the transaction is for the correct token and amount
-    const fee = await proposalNominationFee();
-    if (operation.tick !== GOV_TOKEN_TICKER || parseFloat(operation.amt) !== fee) {
-      logger.warn({ operation }, 'Invalid transaction details');
+    if (operation.tick !== GOV_TOKEN_TICKER || operation.amt !== feeInSats) {
+      logger.warn({ 
+        operation,
+        expectedAmount: feeInSats,
+        receivedAmount: operation.amt,
+        expectedTicker: GOV_TOKEN_TICKER,
+        receivedTicker: operation.tick,
+        amountMatches: operation.amt === feeInSats,
+        tickerMatches: operation.tick === GOV_TOKEN_TICKER
+      }, 'Invalid transaction details');
       res.status(400).json({ error: 'Invalid transaction' });
       return;
     }
@@ -1473,21 +1501,10 @@ export const verifyProposalEdit = async (req: Request, res: Response, next: Next
       return;
     }
 
-    // Create a nomination record for the edit verification
-    const nomination = await createProposalNomination({
-      proposal_id: proposalId,
-      hash: transactionHash,
-      toaddress: operation.to,
-      fromaddress: operation.from,
-      amountsent: new Decimal(operation.amt),
-      validvote: true,
-      created: new Date()
-    });
-
     logger.info({ proposalId, transactionHash }, 'Edit verification successful');
     res.status(200).json({ 
       status: 'completed',
-      nomination,
+      nomination: oldestNomination,
       originalNominator: oldestNomination.fromaddress
     });
   } catch (error) {
