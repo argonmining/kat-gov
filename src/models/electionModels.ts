@@ -678,4 +678,67 @@ export const getAllElectionPrimaries = async (): Promise<Election[]> => {
     throw new Error('Could not fetch election primaries');
   }
 };
+
+export async function createElectionPrimary(electionId: number): Promise<any> {
+  try {
+    // 1. Check if election exists and isn't already in a primary
+    const existingPrimary = await prisma.election_primaries.findFirst({
+      where: {
+        election_id: electionId
+      }
+    });
+
+    if (existingPrimary) {
+      throw new Error('Primary already exists for this election');
+    }
+
+    // 2. Get the election data
+    const election = await prisma.elections.findUnique({
+      where: { id: electionId },
+      include: {
+        election_types: true,
+        election_positions: true,
+        election_statuses: true
+      }
+    });
+
+    if (!election) {
+      throw new Error('Election not found');
+    }
+
+    // 3. Create a new snapshot
+    const newSnapshot = await prisma.election_snapshots.create({
+      data: {
+        generated: new Date(),
+        data: {}, // You'll need to implement the snapshot data generation
+        proposal_id: null
+      }
+    });
+
+    // 4. Create the primary record
+    const primary = await prisma.election_primaries.create({
+      data: {
+        title: `Primary: ${election.title}`,
+        description: `Primary: ${election.description}`,
+        reviewed: true,
+        approved: null,
+        votesactive: null,
+        openvote: null,
+        closevote: null,
+        created: new Date(),
+        type: election.type,
+        position: election.position,
+        candidates: null,
+        status: 4, // Assuming 4 is the correct status ID
+        snapshot: newSnapshot.id,
+        election_id: electionId
+      }
+    });
+
+    return primary;
+  } catch (error) {
+    console.error('Error creating election primary:', error);
+    throw error;
+  }
+}
   

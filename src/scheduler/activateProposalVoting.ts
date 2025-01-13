@@ -6,7 +6,7 @@ import { schedulerState } from './schedulerState.js';
 const logger = createModuleLogger('activateProposalVoting');
 const prisma = new PrismaClient();
 
-async function activateProposalVoting() {
+export async function activateProposalVoting() {
   return schedulerState.runTask('proposalVotingActivation', async () => {
     try {
       logger.info('Starting proposal voting activation check');

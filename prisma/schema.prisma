@@ -93,6 +93,7 @@ model election_positions {
 
 model election_primaries {
   id                  Int                  @id @default(autoincrement())
+  election_id         Int                  @unique
   title               String?              @db.VarChar(255)
   description         String?
   reviewed            Boolean?             @default(false)
@@ -106,6 +107,7 @@ model election_primaries {
   candidates          Int?
   status              Int?
   snapshot            Int?
+  election            elections            @relation(fields: [election_id], references: [id])
   election_candidates election_candidates? @relation(fields: [candidates], references: [id], onDelete: NoAction, onUpdate: NoAction)
   election_positions  election_positions?  @relation(fields: [position], references: [id], onDelete: NoAction, onUpdate: NoAction)
   election_snapshots  election_snapshots?  @relation(fields: [snapshot], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -163,6 +165,7 @@ model elections {
   election_statuses                                                  election_statuses?   @relation(fields: [status], references: [id], onDelete: NoAction, onUpdate: NoAction)
   election_types                                                     election_types?      @relation(fields: [type], references: [id], onDelete: NoAction, onUpdate: NoAction)
   election_votes                                                     election_votes[]
+  primary                                                            election_primaries?
 }
 
 model proposal_no_votes {

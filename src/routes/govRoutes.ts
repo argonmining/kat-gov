@@ -7,9 +7,7 @@ import * as burnController from '../controllers/burnController.js';
 import * as treasuryController from '../controllers/treasuryController.js';
 import * as cleanupController from '../controllers/cleanupController.js';
 import * as candidateController from '../controllers/candidateController.js';
-import { runDraftCleanup } from '../scheduler/deleteOldDraftProposals.js';
-import activateProposalVoting from '../scheduler/activateProposalVoting.js';
-import { getTreasuryTransactions } from '../scheduler/getTreasuryTransactions.js';
+import * as schedulerController from '../controllers/schedulerController.js';
 
 const router = Router();
 const logger = createModuleLogger('govRoutes');
@@ -42,105 +40,101 @@ router.use(logRoute);
 // System Routes
 // ============================================================================
 
-// Health check endpoint
 router.get('/test', (req: Request, res: Response) => {
   logger.info('Test endpoint hit');
   res.status(200).json({ message: 'Gov routes are working' });
 });
 
-// System configuration endpoint
 router.get('/config', proposalController.getGovConfig);
 
-// Active item count endpoints
+// Active item counts
 router.get('/active/proposal/count', proposalController.fetchActiveProposalCount);
 router.get('/active/election/count', electionController.fetchActiveElectionCount);
 
-// ============================================================================
-// Snapshot Management Routes
-// ============================================================================
+// Scheduler triggers
+router.post('/scheduler/run/draft-cleanup', schedulerController.runDraftCleanupHandler);
+router.post('/scheduler/run/proposal-voting', schedulerController.runProposalVotingHandler);
+router.post('/scheduler/run/treasury-transactions', schedulerController.runTreasuryTransactionsHandler);
+router.post('/scheduler/run/election-primaries', schedulerController.runElectionPrimariesHandler);
 
-router.get('/proposal/snapshots', snapshotController.fetchAllProposalSnapshots);
-router.get('/election/snapshots', snapshotController.fetchAllElectionSnapshots);
-router.post('/snapshot', snapshotController.createNewSnapshot);
-router.get('/snapshot/:id', snapshotController.fetchSnapshotById);
-
-// ============================================================================
-// Token Burn Management Routes
-// ============================================================================
-
-router.post('/burn/krc20', burnController.burnKrc20Tokens);
-router.post('/burn/kaspa', burnController.burnKaspaTokens);
-router.post('/burn/return-gov', burnController.returnGovKaspaTokens);
-router.post('/burn/drop-gas', burnController.dropKasGasTokens);
-router.post('/burn/yes-wallet', burnController.burnYesWalletTokens);
-router.post('/burn/no-wallet', burnController.burnNoWalletTokens);
+// System maintenance
+router.post('/cleanup/draft-proposals', cleanupController.cleanupDraftProposals);
 
 // ============================================================================
-// Proposal Routes - Static First
+// Proposal Routes
 // ============================================================================
 
-// Static proposal routes
+// List endpoints
 router.get('/proposals', proposalController.fetchAllProposals);
-router.post('/proposal', proposalController.submitProposal);
 router.get('/proposal/types', proposalController.fetchAllProposalTypes);
-router.post('/proposal/types', proposalController.addProposalType);
 router.get('/proposal/statuses', proposalController.fetchAllProposalStatuses);
-router.post('/proposal/statuses', proposalController.addProposalStatus);
 router.get('/proposal/votes/yes', proposalController.fetchAllProposalYesVotes);
-router.post('/proposal/votes/yes', proposalController.submitProposalYesVote);
 router.get('/proposal/votes/no', proposalController.fetchAllProposalNoVotes);
-router.post('/proposal/votes/no', proposalController.submitProposalNoVote);
-router.post('/proposal/nomination/create', proposalController.verifyNominationTransaction);
 router.get('/proposal/nomination/fee', proposalController.getNominationFee);
 
-// Parameterized proposal routes with specific actions first
-router.post('/proposal/:id/verify-edit', proposalController.verifyProposalEditWithExistingNomination);
+// Create endpoints
+router.post('/proposal', proposalController.submitProposal);
+router.post('/proposal/types', proposalController.addProposalType);
+router.post('/proposal/statuses', proposalController.addProposalStatus);
+router.post('/proposal/votes/yes', proposalController.submitProposalYesVote);
+router.post('/proposal/votes/no', proposalController.submitProposalNoVote);
+router.post('/proposal/nomination/create', proposalController.verifyNominationTransaction);
+
+// Parameterized endpoints
+router.get('/proposal/:id', proposalController.fetchProposalById);
+router.put('/proposal/:id', proposalController.modifyProposal);
 router.get('/proposal/:id/votes', proposalController.fetchVotesForProposal);
 router.get('/proposal/:id/nominations', proposalController.fetchNominationsForProposal);
 router.get('/proposal/:id/nominations/count', proposalController.fetchNominationCount);
 router.get('/proposal/:id/nominations/status', proposalController.getNominationVerificationStatus);
+router.post('/proposal/:id/verify-edit', proposalController.verifyProposalEditWithExistingNomination);
 
-// Generic parameterized proposal routes
+// Type and status management
 router.put('/proposal/types/:id', proposalController.modifyProposalType);
 router.delete('/proposal/types/:id', proposalController.removeProposalType);
 router.put('/proposal/statuses/:id', proposalController.modifyProposalStatus);
 router.delete('/proposal/statuses/:id', proposalController.removeProposalStatus);
-router.get('/proposal/:id', proposalController.fetchProposalById);
-router.put('/proposal/:id', proposalController.modifyProposal);
 
 // ============================================================================
-// Election Routes - Static First
+// Election Routes
 // ============================================================================
 
-// Static election routes
+// List endpoints
 router.get('/elections', electionController.fetchAllElections);
 router.get('/elections/primaries', electionController.fetchAllElectionPrimaries);
-router.post('/election', electionController.submitElection);
 router.get('/election/types', electionController.fetchAllElectionTypes);
-router.post('/election/types', electionController.addElectionType);
 router.get('/election/statuses', electionController.fetchAllElectionStatuses);
-router.post('/election/statuses', electionController.addElectionStatus);
 router.get('/election/positions', electionController.fetchAllElectionPositions);
-router.post('/election/positions', electionController.addElectionPosition);
 router.get('/election/candidates', electionController.fetchAllElectionCandidates);
-router.post('/election/candidates', electionController.submitElectionCandidate);
 router.get('/election/candidate/wallets', candidateController.fetchAllCandidateWallets);
-router.post('/election/candidate/wallets', candidateController.addCandidateWallet);
 router.get('/election/candidate/nominations', candidateController.fetchAllCandidateNominations);
-router.post('/election/candidate/nominations', candidateController.submitCandidateNomination);
 router.get('/election/nomination/fee', candidateController.getCandidateNominationFee);
+
+// Create endpoints
+router.post('/election', electionController.submitElection);
+router.post('/election/types', electionController.addElectionType);
+router.post('/election/statuses', electionController.addElectionStatus);
+router.post('/election/positions', electionController.addElectionPosition);
+router.post('/election/candidates', electionController.submitElectionCandidate);
+router.post('/election/candidate/wallets', candidateController.addCandidateWallet);
+router.post('/election/candidate/nominations', candidateController.submitCandidateNomination);
 router.post('/election/candidate/votes', candidateController.submitCandidateVote);
 
-// Parameterized election routes
+// Parameterized endpoints
+router.get('/election/:id', electionController.fetchElectionById);
+router.put('/election/:id', electionController.modifyElection);
+router.delete('/election/:id', electionController.removeElection);
+router.post('/election/:electionId/primary', electionController.createElectionPrimaryHandler);
+
+// Type, status, and position management
 router.put('/election/types/:id', electionController.modifyElectionType);
 router.delete('/election/types/:id', electionController.removeElectionType);
 router.put('/election/statuses/:id', electionController.modifyElectionStatus);
 router.delete('/election/statuses/:id', electionController.removeElectionStatus);
 router.put('/election/positions/:id', electionController.modifyElectionPosition);
 router.delete('/election/positions/:id', electionController.removeElectionPosition);
-router.get('/election/:id', electionController.fetchElectionById);
-router.put('/election/:id', electionController.modifyElection);
-router.delete('/election/:id', electionController.removeElection);
+
+// Candidate management
 router.put('/election/candidates/:id', electionController.modifyElectionCandidate);
 router.delete('/election/candidates/:id', electionController.removeElectionCandidate);
 router.get('/election/candidate/:candidateId/votes', candidateController.fetchVotesForCandidate);
@@ -150,77 +144,32 @@ router.put('/election/candidate/nominations/:id', candidateController.modifyCand
 router.delete('/election/candidate/nominations/:id', candidateController.removeCandidateNomination);
 
 // ============================================================================
-// Treasury Management Routes
+// Snapshot Routes
 // ============================================================================
 
-// Static treasury routes
-router.post('/treasury/fetch-transactions', treasuryController.fetchTreasuryTransactions);
-router.get('/treasury/wallets', treasuryController.getTreasuryWallets);
+router.get('/proposal/snapshots', snapshotController.fetchAllProposalSnapshots);
+router.get('/election/snapshots', snapshotController.fetchAllElectionSnapshots);
+router.post('/snapshot', snapshotController.createNewSnapshot);
+router.get('/snapshot/:id', snapshotController.fetchSnapshotById);
 
-// Parameterized treasury routes
+// ============================================================================
+// Treasury Routes
+// ============================================================================
+
+router.get('/treasury/wallets', treasuryController.getTreasuryWallets);
+router.post('/treasury/fetch-transactions', treasuryController.fetchTreasuryTransactions);
 router.get('/treasury/wallet/:address/transactions', treasuryController.getWalletTransactions);
 
 // ============================================================================
-// System Maintenance Routes
+// Token Management Routes
 // ============================================================================
 
-router.post('/cleanup/draft-proposals', cleanupController.cleanupDraftProposals);
-
-// Manual scheduler triggers
-router.post('/scheduler/run/draft-cleanup', async (req: Request, res: Response) => {
-    try {
-        logger.info('Manual trigger: draft cleanup');
-        const result = await runDraftCleanup();
-        res.status(200).json({ 
-            success: true, 
-            message: 'Draft cleanup completed successfully',
-            deletedCount: result 
-        });
-    } catch (error) {
-        logger.error({ error }, 'Manual draft cleanup failed');
-        res.status(500).json({ 
-            success: false, 
-            message: 'Draft cleanup failed',
-            error: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
-
-router.post('/scheduler/run/proposal-voting', async (req: Request, res: Response) => {
-    try {
-        logger.info('Manual trigger: proposal voting activation');
-        await activateProposalVoting();
-        res.status(200).json({ 
-            success: true, 
-            message: 'Proposal voting activation completed successfully' 
-        });
-    } catch (error) {
-        logger.error({ error }, 'Manual proposal voting activation failed');
-        res.status(500).json({ 
-            success: false, 
-            message: 'Proposal voting activation failed',
-            error: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
-
-router.post('/scheduler/run/treasury-transactions', async (req: Request, res: Response) => {
-    try {
-        logger.info('Manual trigger: treasury transactions fetch');
-        await getTreasuryTransactions();
-        res.status(200).json({ 
-            success: true, 
-            message: 'Treasury transactions fetch completed successfully' 
-        });
-    } catch (error) {
-        logger.error({ error }, 'Manual treasury transactions fetch failed');
-        res.status(500).json({ 
-            success: false, 
-            message: 'Treasury transactions fetch failed',
-            error: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
+router.post('/burn/krc20', burnController.burnKrc20Tokens);
+router.post('/burn/kaspa', burnController.burnKaspaTokens);
+router.post('/burn/return-gov', burnController.returnGovKaspaTokens);
+router.post('/burn/drop-gas', burnController.dropKasGasTokens);
+router.post('/burn/yes-wallet', burnController.burnYesWalletTokens);
+router.post('/burn/no-wallet', burnController.burnNoWalletTokens);
 
 // Apply error handling middleware last
 router.use(errorHandler);

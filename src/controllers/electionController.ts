@@ -24,7 +24,8 @@ import {
   countActiveElections,
   updateElection,
   getElectionById,
-  getAllElectionPrimaries
+  getAllElectionPrimaries,
+  createElectionPrimary
 } from '../models/electionModels.js';
 import {
   Election,
@@ -510,5 +511,26 @@ export const fetchAllElectionPrimaries = async (req: Request, res: Response): Pr
   } catch (error) {
     logger.error({ error }, 'Error fetching election primaries');
     res.status(500).json({ error: 'Failed to fetch election primaries' });
+  }
+};
+
+export const createElectionPrimaryHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { electionId } = req.params;
+    
+    if (!electionId) {
+      res.status(400).json({ error: 'Election ID is required' });
+      return;
+    }
+
+    const primary = await createElectionPrimary(Number(electionId));
+    logger.info({ electionId }, 'Successfully created primary for election');
+    
+    res.status(201).json(primary);
+  } catch (error: any) {
+    logger.error({ error, electionId: req.params.electionId }, 'Error creating election primary');
+    res.status(500).json({ 
+      error: error.message || 'Failed to create election primary' 
+    });
   }
 }; 
