@@ -114,6 +114,7 @@ router.put('/proposal/:id', proposalController.modifyProposal);
 
 // Static election routes
 router.get('/elections', electionController.fetchAllElections);
+router.get('/elections/primaries', electionController.fetchAllElectionPrimaries);
 router.post('/election', electionController.submitElection);
 router.get('/election/types', electionController.fetchAllElectionTypes);
 router.post('/election/types', electionController.addElectionType);

@@ -23,7 +23,8 @@ import {
   deleteElectionType,
   countActiveElections,
   updateElection,
-  getElectionById
+  getElectionById,
+  getAllElectionPrimaries
 } from '../models/electionModels.js';
 import {
   Election,
@@ -480,5 +481,34 @@ export const fetchElectionById = async (req: Request, res: Response): Promise<vo
   } catch (error) {
     logger.error({ error }, 'Error fetching election by ID');
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Election Primaries
+export const fetchAllElectionPrimaries = async (req: Request, res: Response): Promise<void> => {
+  try {
+    logger.info('Fetching all election primaries');
+    const primaries = await getAllElectionPrimaries();
+
+    // Transform to match frontend format with complete data
+    const transformedPrimaries = primaries.map(primary => ({
+      id: primary.id,
+      title: primary.title || '',
+      description: primary.description || '',
+      type: primary.type,
+      position: primary.position,
+      status: primary.status,
+      reviewed: primary.reviewed,
+      approved: primary.approved,
+      votesactive: primary.votesactive,
+      openvote: primary.openvote?.toISOString(),
+      closevote: primary.closevote?.toISOString()
+    }));
+
+    logger.debug({ primaryCount: primaries.length }, 'Election primaries retrieved successfully');
+    res.status(200).json(transformedPrimaries);
+  } catch (error) {
+    logger.error({ error }, 'Error fetching election primaries');
+    res.status(500).json({ error: 'Failed to fetch election primaries' });
   }
 }; 

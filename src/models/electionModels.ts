@@ -657,4 +657,25 @@ export const createElectionVote = async (vote: {
     throw error;
   }
 };
+
+// Election Primaries
+export const getAllElectionPrimaries = async (): Promise<Election[]> => {
+  try {
+    logger.info('Fetching all election primaries');
+    const result = await prisma.election_primaries.findMany({
+      include: {
+        election_types: true,
+        election_positions: true,
+        election_candidates: true,
+        election_statuses: true,
+        election_snapshots: true
+      }
+    });
+    logger.debug({ count: result.length }, 'Retrieved all election primaries');
+    return result as unknown as Election[];
+  } catch (error) {
+    logger.error({ error }, 'Error fetching election primaries');
+    throw new Error('Could not fetch election primaries');
+  }
+};
   
