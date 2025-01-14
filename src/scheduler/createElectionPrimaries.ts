@@ -53,7 +53,6 @@ export async function createElectionPrimary(electionId: number) {
         created: new Date(),
         type: election.type,
         position: election.position,
-        candidates: null,
         status: 4, // Assuming 4 is the correct status ID
         snapshot: newSnapshot.id,
         election_id: electionId

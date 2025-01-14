@@ -7,6 +7,9 @@ import {
 } from '../types/candidateTypes.js';
 import { CandidateVote } from '../types/electionTypes.js';
 import { Decimal } from '@prisma/client/runtime/library';
+import { createKaspaWallet } from '../utils/walletUtils.js';
+import { config } from '../config/env.js';
+import { proposalEditFee } from '../utils/tokenCalcs.js';
 
 const logger = createModuleLogger('candidateModels');
 
@@ -285,6 +288,259 @@ export const getEncryptedPrivateKey = async (walletId: number): Promise<string |
   } catch (error) {
     logger.error({ error, walletId }, 'Error fetching encrypted private key');
     throw new Error('Could not fetch encrypted private key');
+  }
+};
+
+// Primary Candidate Functions
+export const verifyPrimaryCandidateTransaction = async (data: {
+  fee: number;
+  primaryId: number;
+}): Promise<any> => {
+  try {
+    logger.info({ primaryId: data.primaryId, fee: data.fee }, 'Verifying primary candidate transaction');
+
+    // Get the primary election
+    const primary = await prisma.election_primaries.findUnique({
+      where: { id: data.primaryId },
+      include: {
+        election: true
+      }
+    });
+
+    if (!primary) {
+      throw new Error('Primary election not found');
+    }
+
+    // Calculate expected fee
+    const expectedFee = await proposalEditFee();
+    if (data.fee < expectedFee) {
+      throw new Error('Insufficient fee amount');
+    }
+
+    // Get the wallet for fee collection
+    const feeWallet = await prisma.proposal_wallets.findFirst({
+      where: {
+        active: true,
+        proposal_id: primary.election.id
+      }
+    });
+
+    if (!feeWallet?.address) {
+      throw new Error('Fee collection wallet not found');
+    }
+
+    // Generate a verification ID that includes the primary ID, target amount, and timestamp
+    const timestamp = Date.now();
+    const targetAmount = new Decimal(data.fee).mul(new Decimal('100000000')).toNumber();
+    const verificationId = Buffer.from(`${data.primaryId}-${targetAmount}-${timestamp}`).toString('base64');
+
+    logger.debug({ primaryId: data.primaryId }, 'Primary candidate transaction verification initiated');
+    return {
+      status: 'pending',
+      message: 'Verification process started',
+      retryAfter: 3, // seconds
+      verificationId,
+      expectedAmount: targetAmount,
+      address: feeWallet.address,
+      ticker: config.tokens.govTokenTicker
+    };
+  } catch (error) {
+    logger.error({ error }, 'Error verifying primary candidate transaction');
+    throw error;
+  }
+};
+
+export const getPrimaryCandidateVerification = async (primaryId: number, verificationId: string): Promise<any> => {
+  try {
+    logger.info({ primaryId, verificationId }, 'Getting primary candidate verification status');
+
+    // Get the primary election
+    const primary = await prisma.election_primaries.findUnique({
+      where: { id: primaryId },
+      include: {
+        election: true
+      }
+    });
+
+    if (!primary) {
+      throw new Error('Primary election not found');
+    }
+
+    // Decode the verification ID to get the target amount and timestamp
+    const [encodedPrimaryId, encodedAmount, timestamp] = Buffer.from(verificationId, 'base64')
+      .toString()
+      .split('-');
+
+    if (Number(encodedPrimaryId) !== primaryId) {
+      throw new Error('Invalid verification ID');
+    }
+
+    // Get the wallet for fee collection
+    const feeWallet = await prisma.proposal_wallets.findFirst({
+      where: {
+        active: true,
+        proposal_id: primary.election.id
+      }
+    });
+
+    if (!feeWallet?.address) {
+      throw new Error('Fee collection wallet not found');
+    }
+
+    // Check for KRC-20 transactions to this wallet
+    const response = await fetch(`${config.kasplex.apiBaseUrl}/operations?address=${feeWallet.address}&tick=${config.tokens.govTokenTicker}`);
+    const data = await response.json();
+
+    if (data?.result && Array.isArray(data.result)) {
+      // Look for transactions after the verification started
+      for (const operation of data.result) {
+        // Convert operation amount to number for comparison
+        const operationAmount = operation.amt ? Number(operation.amt) : 0;
+        const operationTimestamp = new Date(Number(operation.mtsAdd)).getTime();
+
+        const matches = {
+          to: operation.to === feeWallet.address,
+          amount: operationAmount === Number(encodedAmount),
+          tick: operation.tick === config.tokens.govTokenTicker,
+          timestamp: operationTimestamp > (Number(timestamp) - 3600000) // Accept transactions from last hour
+        };
+
+        if (matches.to && matches.amount && matches.tick && matches.timestamp) {
+          logger.info({ 
+            primaryId,
+            hashRev: operation.hashRev,
+            amount: operation.amt,
+            tick: operation.tick,
+            fromAddress: operation.from
+          }, 'Found matching transaction');
+
+          return {
+            status: 'completed',
+            transaction: {
+              hash: operation.hashRev,
+              amount: operation.amt,
+              from: operation.from,
+              to: operation.to,
+              ticker: operation.tick
+            }
+          };
+        }
+      }
+    }
+
+    // If no matching transaction found, return pending status
+    return {
+      status: 'pending',
+      message: 'Verification in progress'
+    };
+  } catch (error) {
+    logger.error({ error }, 'Error getting primary candidate verification status');
+    throw error;
+  }
+};
+
+export const createPrimaryCandidate = async (candidate: {
+  name: string;
+  description: string;
+  twitter?: string;
+  discord?: string;
+  telegram?: string;
+  type: number;
+  status: number;
+  primaryId: number;
+  submitted: Date;
+  verificationId: string;
+}): Promise<any> => {
+  try {
+    const { 
+      name,
+      description,
+      twitter,
+      discord,
+      telegram,
+      type,
+      status,
+      primaryId,
+      submitted,
+      verificationId
+    } = candidate;
+    
+    logger.info({ name, type, status, primaryId }, 'Creating primary candidate');
+    
+    // First verify the transaction is completed
+    const verification = await getPrimaryCandidateVerification(primaryId, verificationId);
+    if (verification.status !== 'completed') {
+      throw new Error('Transaction verification not completed');
+    }
+    
+    // Verify primary election exists and get current candidates
+    const primary = await prisma.election_primaries.findUnique({
+      where: { id: primaryId },
+      select: { candidates: true }
+    });
+
+    if (!primary) {
+      throw new Error('Primary election not found');
+    }
+    
+    // Convert to database format
+    const createData = {
+      name,
+      description,
+      twitter: twitter ?? null,
+      discord: discord ?? null,
+      telegram: telegram ?? null,
+      type,
+      status,
+      created: submitted,
+      active: true
+    };
+    
+    // Start a transaction to create both candidate and wallet
+    const result = await prisma.$transaction(async (prisma) => {
+      // Create the candidate
+      const newCandidate = await prisma.election_candidates.create({
+        data: createData
+      });
+
+      // Create a wallet for the candidate using existing wallet utils
+      const { address, encryptedPrivateKey } = await createKaspaWallet();
+      
+      // Create the wallet record
+      const wallet = await prisma.candidate_wallets.create({
+        data: {
+          address,
+          encryptedprivatekey: encryptedPrivateKey,
+          candidate_id: newCandidate.id,
+          active: true,
+          created: submitted,
+          balance: new Decimal('0')
+        }
+      });
+
+      // Update the candidate with the wallet ID
+      await prisma.election_candidates.update({
+        where: { id: newCandidate.id },
+        data: {
+          wallet: wallet.id
+        }
+      });
+
+      // Update primary election with candidate ID array
+      await prisma.$executeRaw`UPDATE election_primaries SET candidates = array_append(candidates, ${newCandidate.id}) WHERE id = ${primaryId}`;
+
+      return {
+        ...newCandidate,
+        wallet: address,
+        transaction: verification.transaction
+      };
+    });
+
+    logger.debug({ id: result.id }, 'Primary candidate created successfully');
+    return result;
+  } catch (error) {
+    logger.error({ error, candidate }, 'Error creating primary candidate');
+    throw error;
   }
 };
  

@@ -20,6 +20,41 @@ export interface Election {
   snapshot: number | null;
 }
 
+// Primary election type
+export interface PrimaryElection {
+  id: number;
+  title: string;
+  description: string;
+  type: number;
+  position: number;
+  status: number;
+  reviewed: boolean;
+  approved: boolean;
+  votesactive: boolean;
+  openvote: Date | null;
+  closevote: Date | null;
+  created: Date;
+  snapshot: number | null;
+  candidates: number[];
+  parent_election_id: number;
+  election: {
+    id: number;
+    title: string;
+    description: string;
+    reviewed: boolean;
+    approved: boolean;
+    votesactive: boolean;
+    openvote: string | null;
+    closevote: string | null;
+    created: string;
+    type: number;
+    position: number;
+    status: number;
+    snapshot: number | null;
+    wallet: string | null;
+  };
+}
+
 // Election candidate types
 export interface ElectionCandidate {
   id: number;

@@ -92,27 +92,27 @@ model election_positions {
 }
 
 model election_primaries {
-  id                  Int                  @id @default(autoincrement())
-  election_id         Int                  @unique
-  title               String?              @db.VarChar(255)
+  id                  Int                   @id @default(autoincrement())
+  election_id         Int                   @unique
+  title               String?               @db.VarChar(255)
   description         String?
-  reviewed            Boolean?             @default(false)
-  approved            Boolean?             @default(false)
-  votesactive         Boolean?             @default(false)
-  openvote            DateTime?            @db.Timestamptz(6)
-  closevote           DateTime?            @db.Timestamptz(6)
-  created             DateTime?            @db.Timestamptz(6)
+  reviewed            Boolean?              @default(false)
+  approved            Boolean?              @default(false)
+  votesactive         Boolean?              @default(false)
+  openvote            DateTime?             @db.Timestamptz(6)
+  closevote           DateTime?             @db.Timestamptz(6)
+  created             DateTime?             @db.Timestamptz(6)
   type                Int?
   position            Int?
-  candidates          Int?
+  candidates          Int[]                 @default([])
   status              Int?
   snapshot            Int?
-  election            elections            @relation(fields: [election_id], references: [id])
-  election_candidates election_candidates? @relation(fields: [candidates], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  election_positions  election_positions?  @relation(fields: [position], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  election_snapshots  election_snapshots?  @relation(fields: [snapshot], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  election_statuses   election_statuses?   @relation(fields: [status], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  election_types      election_types?      @relation(fields: [type], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election            elections             @relation(fields: [election_id], references: [id])
+  election_candidates election_candidates[]
+  election_positions  election_positions?   @relation(fields: [position], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_snapshots  election_snapshots?   @relation(fields: [snapshot], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_statuses   election_statuses?    @relation(fields: [status], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_types      election_types?       @relation(fields: [type], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model election_snapshots {

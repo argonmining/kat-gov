@@ -9,7 +9,8 @@ import {
   ElectionType,
   ElectionSnapshot,
   CandidateVote,
-  ElectionVote
+  ElectionVote,
+  PrimaryElection
 } from '../types/electionTypes.js';
 import { calculateVoteWeight, validateVoteAmount } from '../utils/voteCalculator.js';
 
@@ -60,17 +61,41 @@ export const getAllElections = async (): Promise<Election[]> => {
       include: {
         election_types: true,
         election_positions: true,
+        election_statuses: true,
+        election_snapshots: true,
         election_candidates_elections_firstcandidateToelection_candidates: true,
         election_candidates_elections_secondcandidateToelection_candidates: true,
-        election_statuses: true,
-        election_snapshots: true
+        primary: {
+          include: {
+            election_types: true,
+            election_positions: true,
+            election_statuses: true,
+            election_snapshots: true
+          }
+        }
       }
     });
-    logger.debug({ count: result.length }, 'Retrieved all elections');
-    return result as unknown as Election[];
+
+    return result.map(election => ({
+      id: election.id,
+      title: election.title || '',
+      description: election.description || '',
+      reviewed: election.reviewed || false,
+      approved: election.approved || false,
+      votesactive: election.votesactive || false,
+      openvote: election.openvote,
+      closevote: election.closevote,
+      created: election.created || new Date(),
+      type: election.type || 0,
+      position: election.position || 0,
+      firstcandidate: election.firstcandidate,
+      secondcandidate: election.secondcandidate,
+      status: election.status || 0,
+      snapshot: election.snapshot
+    }));
   } catch (error) {
     logger.error({ error }, 'Error fetching elections');
-    throw new Error('Could not fetch elections');
+    throw error;
   }
 };
 
@@ -659,23 +684,88 @@ export const createElectionVote = async (vote: {
 };
 
 // Election Primaries
-export const getAllElectionPrimaries = async (): Promise<Election[]> => {
+export const getAllElectionPrimaries = async (): Promise<PrimaryElection[]> => {
   try {
     logger.info('Fetching all election primaries');
     const result = await prisma.election_primaries.findMany({
-      include: {
-        election_types: true,
-        election_positions: true,
-        election_candidates: true,
-        election_statuses: true,
-        election_snapshots: true
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        reviewed: true,
+        approved: true,
+        votesactive: true,
+        openvote: true,
+        closevote: true,
+        created: true,
+        type: true,
+        position: true,
+        status: true,
+        snapshot: true,
+        candidates: true,
+        election_id: true,
+        election: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            reviewed: true,
+            approved: true,
+            votesactive: true,
+            openvote: true,
+            closevote: true,
+            created: true,
+            type: true,
+            position: true,
+            status: true,
+            snapshot: true
+          }
+        }
       }
     });
-    logger.debug({ count: result.length }, 'Retrieved all election primaries');
-    return result as unknown as Election[];
+
+    if (!result) {
+      return [];
+    }
+
+    return result
+      .filter(primary => primary.election !== null)
+      .map(primary => ({
+        id: primary.id,
+        title: primary.title || '',
+        description: primary.description || '',
+        type: primary.type || 0,
+        position: primary.position || 0,
+        status: primary.status || 0,
+        reviewed: primary.reviewed || false,
+        approved: primary.approved || false,
+        votesactive: primary.votesactive || false,
+        openvote: primary.openvote,
+        closevote: primary.closevote,
+        created: primary.created || new Date(),
+        snapshot: primary.snapshot,
+        candidates: primary.candidates || [],
+        parent_election_id: primary.election_id,
+        election: {
+          id: primary.election.id,
+          title: primary.election.title || '',
+          description: primary.election.description || '',
+          reviewed: primary.election.reviewed || false,
+          approved: primary.election.approved || false,
+          votesactive: primary.election.votesactive || false,
+          openvote: primary.election.openvote?.toISOString() || null,
+          closevote: primary.election.closevote?.toISOString() || null,
+          created: primary.election.created?.toISOString() || new Date().toISOString(),
+          type: primary.election.type || 0,
+          position: primary.election.position || 0,
+          status: primary.election.status || 0,
+          snapshot: primary.election.snapshot,
+          wallet: null
+        }
+      }));
   } catch (error) {
     logger.error({ error }, 'Error fetching election primaries');
-    throw new Error('Could not fetch election primaries');
+    throw error;
   }
 };
 
@@ -728,7 +818,6 @@ export async function createElectionPrimary(electionId: number): Promise<any> {
         created: new Date(),
         type: election.type,
         position: election.position,
-        candidates: null,
         status: 4, // Assuming 4 is the correct status ID
         snapshot: newSnapshot.id,
         election_id: electionId

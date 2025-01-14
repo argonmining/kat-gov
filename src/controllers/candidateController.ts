@@ -11,7 +11,10 @@ import {
   getAllCandidateNominations,
   createCandidateNomination,
   updateCandidateNomination,
-  deleteCandidateNomination
+  deleteCandidateNomination,
+  createPrimaryCandidate,
+  verifyPrimaryCandidateTransaction,
+  getPrimaryCandidateVerification
 } from '../models/candidateModels.js';
 import {
   CandidateVote,
@@ -223,5 +226,88 @@ export const removeCandidateNomination = async (req: Request, res: Response, nex
   } catch (error) {
     logger.error({ error, nominationId: req.params.id }, 'Error removing candidate nomination');
     next(error);
+  }
+};
+
+// Primary Candidate Submission
+export const submitPrimaryCandidate = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { name, description, twitter, discord, telegram, primaryId, verificationId } = req.body;
+    
+    if (!name || !description || !primaryId || !verificationId) {
+      logger.warn({ body: req.body }, 'Missing required fields for primary candidate submission');
+      res.status(400).json({ error: 'Missing required fields' });
+      return;
+    }
+
+    logger.info({ primaryId, name }, 'Submitting primary candidate');
+    
+    const candidate = await createPrimaryCandidate({
+      name,
+      description,
+      twitter: twitter || null,
+      discord: discord || null,
+      telegram: telegram || null,
+      type: 1, // Primary candidate type
+      status: 1, // Active status
+      primaryId,
+      submitted: new Date(),
+      verificationId
+    });
+
+    logger.debug({ candidate }, 'Primary candidate created successfully');
+    res.status(201).json(candidate);
+  } catch (error) {
+    logger.error({ error }, 'Error submitting primary candidate');
+    res.status(500).json({ error: 'Failed to submit primary candidate' });
+  }
+};
+
+// Verify Primary Candidate Submission
+export const verifyPrimaryCandidateSubmission = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { fee, primaryId } = req.body;
+    
+    if (!fee || !primaryId) {
+      logger.warn({ body: req.body }, 'Missing required fields for primary candidate verification');
+      res.status(400).json({ error: 'Missing required fields' });
+      return;
+    }
+
+    logger.info({ primaryId, fee }, 'Verifying primary candidate submission');
+    
+    const verificationResult = await verifyPrimaryCandidateTransaction({
+      fee,
+      primaryId
+    });
+
+    logger.debug({ verificationResult }, 'Primary candidate verification initiated');
+    res.status(200).json(verificationResult);
+  } catch (error) {
+    logger.error({ error }, 'Error verifying primary candidate submission');
+    res.status(500).json({ error: 'Failed to verify primary candidate submission' });
+  }
+};
+
+// Get Primary Candidate Verification Status
+export const getPrimaryCandidateVerificationStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { primaryId, verificationId } = req.params;
+    
+    if (!primaryId || !verificationId) {
+      logger.warn({ params: req.params }, 'Missing required parameters for verification status check');
+      res.status(400).json({ error: 'Missing required parameters' });
+      return;
+    }
+
+    logger.info({ primaryId, verificationId }, 'Checking primary candidate verification status');
+    
+    const status = await getPrimaryCandidateVerification(Number(primaryId), verificationId);
+
+    logger.debug({ status }, 'Primary candidate verification status retrieved');
+    res.status(200).json(status);
+  } catch (error) {
+    logger.error({ error }, 'Error checking primary candidate verification status');
+    res.status(500).json({ error: 'Failed to check verification status' });
   }
 }; 
