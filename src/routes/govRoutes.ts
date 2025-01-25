@@ -144,6 +144,7 @@ router.put('/election/candidate/wallets/:id', candidateController.modifyCandidat
 router.delete('/election/candidate/wallets/:id', candidateController.removeCandidateWallet);
 router.put('/election/candidate/nominations/:id', candidateController.modifyCandidateNomination);
 router.delete('/election/candidate/nominations/:id', candidateController.removeCandidateNomination);
+router.post('/election/candidate/wallet/generate', candidateController.generateCandidateWallet);
 
 // ============================================================================
 // Snapshot Routes

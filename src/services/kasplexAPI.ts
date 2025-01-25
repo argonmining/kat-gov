@@ -31,6 +31,22 @@ const apiFetch = $fetch.create({
   }
 });
 
+interface KRC20Operation {
+  amt: string;
+  from: string;
+  to: string;
+  tick: string;
+  op: string;
+  txAccept: string;
+  opAccept: string;
+  hashRev: string;
+  mtsAdd: string;
+}
+
+interface KRC20OperationListResponse {
+  result: KRC20Operation[];
+}
+
 /**
  * Get the balance of a KRC-20 token for a specific address.
  * @param address - The address to check the balance for.
@@ -55,10 +71,20 @@ export async function getKRC20Balance(address: string, tick: string): Promise<an
  * @param params.next - Optional cursor for pagination
  * @returns The list of operations.
  */
-export async function getKRC20OperationList(params: { address: string; tick?: string; next?: string }): Promise<any> {
+export async function getKRC20OperationList(params: { address: string; tick?: string; next?: string }): Promise<KRC20OperationListResponse> {
   try {
     logger.info(params, 'Fetching KRC20 operation list');
-    return await apiFetch('/oplist', { params });
+    const response = await apiFetch('/oplist', { params });
+
+    // Filter out any operations with missing required fields
+    if (response?.result && Array.isArray(response.result)) {
+      response.result = response.result.filter((op: any): op is KRC20Operation => 
+        op.amt && op.from && op.to && op.tick && op.op && 
+        op.txAccept && op.opAccept && op.hashRev && op.mtsAdd
+      );
+    }
+
+    return response;
   } catch (error) {
     logger.error({ error, params }, 'Error in getKRC20OperationList');
     throw error;

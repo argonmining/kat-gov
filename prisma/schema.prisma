@@ -75,9 +75,9 @@ model election_candidates {
   candidate_statuses_election_candidates_statusTocandidate_statuses             candidate_statuses?     @relation("election_candidates_statusTocandidate_statuses", fields: [status], references: [id], onDelete: NoAction, onUpdate: NoAction)
   candidate_statuses_election_candidates_typeTocandidate_statuses               candidate_statuses?     @relation("election_candidates_typeTocandidate_statuses", fields: [type], references: [id], onDelete: NoAction, onUpdate: NoAction)
   candidate_wallets_election_candidates_walletTocandidate_wallets               candidate_wallets?      @relation("election_candidates_walletTocandidate_wallets", fields: [wallet], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  election_primaries                                                            election_primaries[]
   elections_elections_firstcandidateToelection_candidates                       elections[]             @relation("elections_firstcandidateToelection_candidates")
   elections_elections_secondcandidateToelection_candidates                      elections[]             @relation("elections_secondcandidateToelection_candidates")
+  candidates_of_primaries                                                       election_primaries[]    @relation("_election_candidatesToelection_primaries")
 
   @@index([wallet], map: "idx_election_candidates_wallet")
 }
@@ -92,27 +92,26 @@ model election_positions {
 }
 
 model election_primaries {
-  id                  Int                   @id @default(autoincrement())
-  election_id         Int                   @unique
-  title               String?               @db.VarChar(255)
-  description         String?
-  reviewed            Boolean?              @default(false)
-  approved            Boolean?              @default(false)
-  votesactive         Boolean?              @default(false)
-  openvote            DateTime?             @db.Timestamptz(6)
-  closevote           DateTime?             @db.Timestamptz(6)
-  created             DateTime?             @db.Timestamptz(6)
-  type                Int?
-  position            Int?
-  candidates          Int[]                 @default([])
-  status              Int?
-  snapshot            Int?
-  election            elections             @relation(fields: [election_id], references: [id])
-  election_candidates election_candidates[]
-  election_positions  election_positions?   @relation(fields: [position], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  election_snapshots  election_snapshots?   @relation(fields: [snapshot], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  election_statuses   election_statuses?    @relation(fields: [status], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  election_types      election_types?       @relation(fields: [type], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id                 Int                   @id @default(autoincrement())
+  election_id        Int                   @unique
+  title              String?               @db.VarChar(255)
+  description        String?
+  reviewed           Boolean?              @default(false)
+  approved           Boolean?              @default(false)
+  votesactive        Boolean?              @default(false)
+  openvote           DateTime?             @db.Timestamptz(6)
+  closevote          DateTime?             @db.Timestamptz(6)
+  created            DateTime?             @db.Timestamptz(6)
+  type               Int?
+  position           Int?
+  status             Int?
+  snapshot           Int?
+  election           elections             @relation(fields: [election_id], references: [id])
+  primary_candidates election_candidates[] @relation("_election_candidatesToelection_primaries")
+  election_positions election_positions?   @relation(fields: [position], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_snapshots election_snapshots?   @relation(fields: [snapshot], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_statuses  election_statuses?    @relation(fields: [status], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_types     election_types?       @relation(fields: [type], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model election_snapshots {
@@ -292,14 +291,14 @@ model proposals {
 }
 
 model election_votes {
-  id           Int                @id @default(autoincrement())
+  id           Int                 @id @default(autoincrement())
   election_id  Int
   candidate_id Int
-  toaddress    String            @db.VarChar(255)
-  amountsent   Decimal           @db.Decimal
-  created      DateTime          @db.Timestamptz(6)
-  validvote    Boolean           @default(true)
-  elections    elections         @relation(fields: [election_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  toaddress    String              @db.VarChar(255)
+  amountsent   Decimal             @db.Decimal
+  created      DateTime            @db.Timestamptz(6)
+  validvote    Boolean             @default(true)
+  elections    elections           @relation(fields: [election_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   candidates   election_candidates @relation("election_votes_to_candidates", fields: [candidate_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([election_id], map: "idx_election_votes_election_id")
@@ -307,14 +306,14 @@ model election_votes {
 }
 
 model treasury_transactions {
-  id          Int       @id @default(autoincrement())
-  hash        String    @unique @db.VarChar(255)
-  type        String    @db.VarChar(255)
+  id          Int      @id @default(autoincrement())
+  hash        String   @unique @db.VarChar(255)
+  type        String   @db.VarChar(255)
   description String?
-  ticker      String    @db.VarChar(255)
-  amount      Decimal?  @db.Decimal
-  created     DateTime  @default(now()) @db.Timestamptz(6)
-  updated     DateTime  @updatedAt @db.Timestamptz(6)
+  ticker      String   @db.VarChar(255)
+  amount      Decimal? @db.Decimal
+  created     DateTime @default(now()) @db.Timestamptz(6)
+  updated     DateTime @updatedAt @db.Timestamptz(6)
 
   @@index([hash], map: "idx_treasury_transactions_hash")
   @@index([type], map: "idx_treasury_transactions_type")

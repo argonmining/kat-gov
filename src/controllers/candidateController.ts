@@ -14,7 +14,8 @@ import {
   deleteCandidateNomination,
   createPrimaryCandidate,
   verifyPrimaryCandidateTransaction,
-  getPrimaryCandidateVerification
+  getPrimaryCandidateVerification,
+  verificationStore
 } from '../models/candidateModels.js';
 import {
   CandidateVote,
@@ -23,16 +24,20 @@ import {
   CandidateNominationFeeResponse
 } from '../types/candidateTypes.js';
 import { config } from '../config/env.js';
+import { candidateNominationFee } from '../utils/tokenCalcs.js';
+import { PrismaClient } from '@prisma/client';
+import { createKaspaWallet } from '../utils/walletUtils.js';
 
 const logger = createModuleLogger('candidateController');
+const prisma = new PrismaClient();
 
 // Nomination Fee
 export const getCandidateNominationFee = async (req: Request, res: Response): Promise<void> => {
   try {
     logger.info('Fetching candidate nomination fee');
-    const nominationFee = config.candidates.nominationFeeUsd;
-    logger.debug({ nominationFee }, 'Nomination fee retrieved successfully');
-    res.status(200).json({ nominationFeeUsd: nominationFee });
+    const fee = await candidateNominationFee();
+    logger.debug({ fee }, 'Nomination fee calculated successfully');
+    res.status(200).json({ fee });
   } catch (error) {
     logger.error({ error }, 'Error fetching candidate nomination fee');
     res.status(500).json({ error: 'Failed to fetch nomination fee' });
@@ -240,8 +245,23 @@ export const submitPrimaryCandidate = async (req: Request, res: Response): Promi
       return;
     }
 
-    logger.info({ primaryId, name }, 'Submitting primary candidate');
-    
+    logger.info({ primaryId, name, verificationId }, 'Submitting primary candidate');
+
+    // Get verification data from store
+    const verificationData = verificationStore.get(verificationId);
+    if (!verificationData) {
+      logger.warn({ verificationId }, 'Verification data not found');
+      res.status(400).json({ error: 'Invalid or expired verification ID' });
+      return;
+    }
+
+    if (verificationData.status !== 'completed') {
+      logger.warn({ verificationId, status: verificationData.status }, 'Payment not verified');
+      res.status(400).json({ error: 'Payment not verified' });
+      return;
+    }
+
+    // Create the candidate with the verified wallet
     const candidate = await createPrimaryCandidate({
       name,
       description,
@@ -251,8 +271,8 @@ export const submitPrimaryCandidate = async (req: Request, res: Response): Promi
       type: 1, // Primary candidate type
       status: 1, // Active status
       primaryId,
-      submitted: new Date(),
-      verificationId
+      verificationId,
+      walletAddress: verificationData.walletAddress
     });
 
     logger.debug({ candidate }, 'Primary candidate created successfully');
@@ -266,19 +286,38 @@ export const submitPrimaryCandidate = async (req: Request, res: Response): Promi
 // Verify Primary Candidate Submission
 export const verifyPrimaryCandidateSubmission = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { fee, primaryId } = req.body;
+    const { fee, primaryId, name, description, twitter, discord, telegram } = req.body;
     
-    if (!fee || !primaryId) {
+    if (!fee || !primaryId || !name) {
       logger.warn({ body: req.body }, 'Missing required fields for primary candidate verification');
       res.status(400).json({ error: 'Missing required fields' });
       return;
     }
 
-    logger.info({ primaryId, fee }, 'Verifying primary candidate submission');
+    logger.info({ primaryId, fee, name }, 'Creating and verifying primary candidate submission');
+
+    // Create a pending candidate record first
+    const candidate = await prisma.election_candidates.create({
+      data: {
+        name,
+        twitter: twitter ?? null,
+        discord: discord ?? null,
+        telegram: telegram ?? null,
+        type: 1, // Pending type
+        status: 1, // Pending status
+        created: new Date(),
+        candidates_of_primaries: {
+          connect: {
+            id: primaryId
+          }
+        }
+      }
+    });
     
     const verificationResult = await verifyPrimaryCandidateTransaction({
       fee,
-      primaryId
+      primaryId,
+      candidateId: candidate.id
     });
 
     logger.debug({ verificationResult }, 'Primary candidate verification initiated');
@@ -309,5 +348,35 @@ export const getPrimaryCandidateVerificationStatus = async (req: Request, res: R
   } catch (error) {
     logger.error({ error }, 'Error checking primary candidate verification status');
     res.status(500).json({ error: 'Failed to check verification status' });
+  }
+};
+
+export const generateCandidateWallet = async (req: Request, res: Response) => {
+  try {
+    // Use existing createKaspaWallet function
+    const { address, encryptedPrivateKey } = await createKaspaWallet();
+
+    // Create wallet record in database
+    const wallet = await prisma.candidate_wallets.create({
+      data: {
+        address,
+        encryptedprivatekey: encryptedPrivateKey,
+        balance: 0,
+        created: new Date(),
+        active: true
+      }
+    });
+
+    // Generate a verification ID for tracking this submission
+    const verificationId = crypto.randomUUID();
+
+    // Return the address and verification ID
+    res.status(200).json({
+      address: wallet.address,
+      verificationId
+    });
+  } catch (error) {
+    logger.error({ error }, 'Error generating candidate wallet');
+    res.status(500).json({ error: 'Failed to generate wallet' });
   }
 }; 

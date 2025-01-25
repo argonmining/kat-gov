@@ -154,7 +154,7 @@ export const getAllElectionCandidates = async (): Promise<ElectionCandidate[]> =
         candidate_votes: true,
         candidate_wallets_candidate_wallets_candidate_idToelection_candidates: true,
         candidate_wallets_election_candidates_walletTocandidate_wallets: true,
-        election_primaries: true
+        candidates_of_primaries: true
       }
     });
     logger.debug({ count: result.length }, 'Retrieved all election candidates');
@@ -165,9 +165,9 @@ export const getAllElectionCandidates = async (): Promise<ElectionCandidate[]> =
   }
 };
 
-export const createElectionCandidate = async (candidate: Omit<ElectionCandidate, 'id'>): Promise<ElectionCandidate> => {
+export const createElectionCandidate = async (candidate: Omit<ElectionCandidate, 'id'> & { primaryId?: number }): Promise<ElectionCandidate> => {
   try {
-    const { name, twitter, discord, telegram, created, data, type, status, wallet, nominations } = candidate;
+    const { name, twitter, discord, telegram, created, data, type, status, wallet, nominations, primaryId } = candidate;
     logger.info({ name, twitter, discord, telegram }, 'Creating election candidate');
     const result = await prisma.election_candidates.create({
       data: {
@@ -180,7 +180,12 @@ export const createElectionCandidate = async (candidate: Omit<ElectionCandidate,
         type,
         status,
         wallet,
-        nominations
+        nominations,
+        candidates_of_primaries: primaryId ? {
+          connect: [{
+            id: primaryId
+          }]
+        } : undefined
       },
       include: {
         elections_elections_firstcandidateToelection_candidates: true,
@@ -190,7 +195,7 @@ export const createElectionCandidate = async (candidate: Omit<ElectionCandidate,
         candidate_votes: true,
         candidate_wallets_candidate_wallets_candidate_idToelection_candidates: true,
         candidate_wallets_election_candidates_walletTocandidate_wallets: true,
-        election_primaries: true
+        candidates_of_primaries: true
       }
     });
     logger.debug({ id: result.id }, 'Election candidate created successfully');
@@ -215,7 +220,7 @@ export const updateElectionCandidate = async (id: number, candidate: Partial<Ele
         candidate_votes: true,
         candidate_wallets_candidate_wallets_candidate_idToelection_candidates: true,
         candidate_wallets_election_candidates_walletTocandidate_wallets: true,
-        election_primaries: true
+        candidates_of_primaries: true
       }
     });
 
@@ -688,39 +693,9 @@ export const getAllElectionPrimaries = async (): Promise<PrimaryElection[]> => {
   try {
     logger.info('Fetching all election primaries');
     const result = await prisma.election_primaries.findMany({
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        reviewed: true,
-        approved: true,
-        votesactive: true,
-        openvote: true,
-        closevote: true,
-        created: true,
-        type: true,
-        position: true,
-        status: true,
-        snapshot: true,
-        candidates: true,
-        election_id: true,
-        election: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            reviewed: true,
-            approved: true,
-            votesactive: true,
-            openvote: true,
-            closevote: true,
-            created: true,
-            type: true,
-            position: true,
-            status: true,
-            snapshot: true
-          }
-        }
+      include: {
+        election: true,
+        primary_candidates: true
       }
     });
 
@@ -744,7 +719,19 @@ export const getAllElectionPrimaries = async (): Promise<PrimaryElection[]> => {
         closevote: primary.closevote,
         created: primary.created || new Date(),
         snapshot: primary.snapshot,
-        candidates: primary.candidates || [],
+        candidates: primary.primary_candidates.map(candidate => ({
+          id: candidate.id,
+          name: candidate.name || '',
+          twitter: candidate.twitter || '',
+          discord: candidate.discord || '',
+          telegram: candidate.telegram || '',
+          created: candidate.created || new Date(),
+          data: candidate.data ? Buffer.from(candidate.data) : Buffer.alloc(0),
+          type: candidate.type || 0,
+          status: candidate.status || 0,
+          wallet: candidate.wallet || 0,
+          nominations: candidate.nominations || 0
+        })),
         parent_election_id: primary.election_id,
         election: {
           id: primary.election.id,

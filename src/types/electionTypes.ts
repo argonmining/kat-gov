@@ -35,8 +35,8 @@ export interface PrimaryElection {
   closevote: Date | null;
   created: Date;
   snapshot: number | null;
-  candidates: number[];
   parent_election_id: number;
+  candidates: ElectionCandidate[];
   election: {
     id: number;
     title: string;
