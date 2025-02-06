@@ -172,7 +172,13 @@ export const getAllProposals = async (params: {
 
 export const updateProposal = async (id: number, proposal: Partial<Proposal>): Promise<Proposal | null> => {
   try {
-    logger.info({ id, ...proposal }, 'Updating proposal');
+    logger.info({ 
+      id, 
+      rawProposal: proposal,
+      openvote: proposal.openvote,
+      closevote: proposal.closevote,
+      status: proposal.status
+    }, 'Updating proposal - raw data');
     
     // Convert frontend proposal to database format
     const updateData = {
@@ -189,6 +195,15 @@ export const updateProposal = async (id: number, proposal: Partial<Proposal>): P
       openvote: proposal.openvote,
       closevote: proposal.closevote
     };
+
+    logger.info({ 
+      id, 
+      updateData,
+      dateFields: {
+        openvote: updateData.openvote,
+        closevote: updateData.closevote
+      }
+    }, 'Updating proposal - processed data');
     
     const result = await prisma.proposals.update({
       where: { id },

@@ -11,6 +11,11 @@ export async function activateProposalVoting() {
     try {
       logger.info('Starting proposal voting activation check');
 
+      // Create UTC date for comparison
+      const currentUTCDate = new Date();
+      currentUTCDate.setSeconds(0, 0); // Zero out seconds and milliseconds for cleaner comparison
+      logger.debug({ currentUTCDate }, 'Using UTC date for comparison');
+
       // Find all proposals that meet our criteria
       const proposalsToActivate = await prisma.proposals.findMany({
         where: {
@@ -18,18 +23,34 @@ export async function activateProposalVoting() {
           votesactive: {
             not: true
           },
-          // Open vote time has arrived
+          // Open vote time has arrived (using UTC)
           openvote: {
-            lte: new Date()
+            lte: currentUTCDate
+          },
+          // Not archived
+          status: {
+            not: 10 // Assuming 10 is the Archived status ID
           }
         },
         include: {
           // Include nominations to count them
-          proposal_nominations: true
+          proposal_nominations: true,
+          proposal_statuses: true
         }
       });
 
-      logger.info(`Found ${proposalsToActivate.length} proposals to check for activation`);
+      logger.info({ 
+        proposalsCount: proposalsToActivate.length,
+        currentUTCDate: currentUTCDate.toISOString(),
+        proposals: proposalsToActivate.map(p => ({
+          id: p.id,
+          votesactive: p.votesactive,
+          openvote: p.openvote?.toISOString(),
+          nominationCount: p.proposal_nominations.length,
+          status: p.proposal_statuses?.name,
+          statusId: p.status
+        }))
+      }, `Found ${proposalsToActivate.length} proposals to check for activation`);
 
       // Process each proposal
       for (const proposal of proposalsToActivate) {
@@ -48,7 +69,11 @@ export async function activateProposalVoting() {
 
             logger.info({
               proposalId: proposal.id,
-              nominationCount: proposal.proposal_nominations.length
+              nominationCount: proposal.proposal_nominations.length,
+              openVoteTime: proposal.openvote?.toISOString(),
+              activationTime: currentUTCDate.toISOString(),
+              status: proposal.proposal_statuses?.name,
+              statusId: proposal.status
             }, `Activated voting for proposal`);
           } catch (error) {
             logger.error({
@@ -63,7 +88,11 @@ export async function activateProposalVoting() {
         } else {
           logger.debug({
             proposalId: proposal.id,
-            nominationCount: proposal.proposal_nominations.length
+            nominationCount: proposal.proposal_nominations.length,
+            openVoteTime: proposal.openvote?.toISOString(),
+            status: proposal.proposal_statuses?.name,
+            statusId: proposal.status,
+            requiresNominations: 10 - proposal.proposal_nominations.length
           }, 'Proposal does not have enough nominations yet');
         }
       }
@@ -83,24 +112,6 @@ export async function activateProposalVoting() {
     }
   });
 }
-
-// Run the task immediately when the application starts
-(async () => {
-  try {
-    logger.info('Running initial proposal voting activation check');
-    await activateProposalVoting();
-    logger.info('Initial proposal voting activation completed successfully');
-  } catch (error) {
-    const errorDetails = error instanceof Error ? {
-      message: error.message,
-      name: error.name,
-      stack: error.stack,
-      timestamp: new Date().toISOString()
-    } : 'Unknown error';
-
-    logger.error({ error: errorDetails }, 'Initial proposal voting activation failed');
-  }
-})();
 
 // Schedule the task to run every hour
 cron.schedule('0 * * * *', async () => {

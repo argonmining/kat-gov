@@ -8,10 +8,6 @@ import {
   updateProposal,
   deleteProposal,
   createProposalWallet,
-  getAllProposalSnapshots,
-  createProposalSnapshot,
-  updateProposalSnapshot,
-  deleteProposalSnapshot,
   createProposalVote,
   getVotesForProposal,
   createProposalYesVote,
@@ -42,7 +38,6 @@ import {
   ProposalNomination,
   ProposalType,
   ProposalStatus,
-  ProposalSnapshot,
   ProposalWallet
 } from '../types/proposalTypes.js';
 import { proposalEditFee, proposalNominationFee } from '../utils/tokenCalcs.js';
@@ -431,8 +426,7 @@ export const submitProposalYesVote = async (req: Request, res: Response): Promis
       fromaddress: txDetails.from,
       amountsent: amountForStorage,
       votescounted: voteWeight.votes,
-      validvote: true,
-      proposal_snapshot_id: proposal.snapshot || undefined
+      validvote: true
     };
     
     logger.debug({ voteData }, 'Attempting to create vote');
@@ -646,8 +640,7 @@ export const submitProposalNoVote = async (req: Request, res: Response): Promise
       fromaddress: txDetails.from,
       amountsent: amountForStorage,
       votescounted: voteWeight.votes,
-      validvote: true,
-      proposal_snapshot_id: proposal.snapshot || undefined
+      validvote: true
     };
     
     logger.debug({ voteData }, 'Attempting to create vote');
@@ -998,73 +991,6 @@ export const qualifyProposal = async (req: Request, res: Response, next: NextFun
     });
   } catch (error) {
     logger.error({ error, proposalId: req.params.proposalId }, 'Error qualifying proposal');
-    next(error);
-  }
-};
-
-// Proposal Snapshots
-export const fetchAllProposalSnapshots = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    logger.info('Fetching all proposal snapshots');
-    const snapshots = await getAllProposalSnapshots();
-    logger.debug({ snapshotCount: snapshots.length }, 'Snapshots retrieved successfully');
-    res.status(200).json(snapshots);
-  } catch (error) {
-    logger.error({ error }, 'Error fetching proposal snapshots');
-    next(error);
-  }
-};
-
-export const submitProposalSnapshot = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const { proposal_id, data } = req.body;
-    logger.info({ proposal_id }, 'Creating proposal snapshot');
-    
-    const newSnapshot = await createProposalSnapshot(proposal_id, data as Record<string, any>);
-    logger.info({ snapshotId: newSnapshot.id }, 'Snapshot created successfully');
-    res.status(201).json(newSnapshot);
-  } catch (error) {
-    logger.error({ error, snapshot: req.body }, 'Error creating snapshot');
-    next(error);
-  }
-};
-
-export const modifyProposalSnapshot = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
-      logger.warn({ snapshotId: req.params.id }, 'Invalid snapshot ID format');
-      res.status(400).json({ error: 'Invalid snapshot ID' });
-      return;
-    }
-
-    const { data } = req.body;
-    logger.info({ snapshotId: id }, 'Modifying proposal snapshot');
-    
-    const updatedSnapshot = await updateProposalSnapshot(id, data);
-    logger.info({ snapshotId: id }, 'Snapshot updated successfully');
-    res.status(200).json(updatedSnapshot);
-  } catch (error) {
-    logger.error({ error, snapshotId: req.params.id }, 'Error modifying proposal snapshot');
-    next(error);
-  }
-};
-
-export const removeProposalSnapshot = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
-      logger.warn({ snapshotId: req.params.id }, 'Invalid snapshot ID format');
-      res.status(400).json({ error: 'Invalid snapshot ID' });
-      return;
-    }
-
-    logger.info({ snapshotId: id }, 'Removing proposal snapshot');
-    await deleteProposalSnapshot(id);
-    logger.info({ snapshotId: id }, 'Snapshot deleted successfully');
-    res.status(204).send();
-  } catch (error) {
-    logger.error({ error, snapshotId: req.params.id }, 'Error removing proposal snapshot');
     next(error);
   }
 };

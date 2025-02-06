@@ -14,6 +14,8 @@ export async function runDraftCleanup() {
     });
 }
 
+export default runDraftCleanup;
+
 // Run the task immediately when the application starts
 (async () => {
     try {
