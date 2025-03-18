@@ -146,7 +146,8 @@ export const fetchAllElectionCandidates = async (req: Request, res: Response, ne
 export const submitElectionCandidate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const candidate: Omit<ElectionCandidate, 'id'> = req.body;
-    logger.info({ candidate }, 'Submitting election candidate');
+    const { assignToElection, electionPosition } = req.body;
+    logger.info({ candidate, assignToElection, electionPosition }, 'Submitting election candidate');
     
     // Create the candidate first
     const newCandidate = await createElectionCandidate({
@@ -162,6 +163,56 @@ export const submitElectionCandidate = async (req: Request, res: Response, next:
     const updatedCandidate = await updateElectionCandidate(newCandidate.id, {
       wallet: wallet.id
     });
+
+    // If assignToElection is provided, assign the candidate to the election
+    if (assignToElection && !isNaN(parseInt(assignToElection, 10))) {
+      const electionId = parseInt(assignToElection, 10);
+      
+      // Verify the election exists
+      const election = await prisma.elections.findUnique({
+        where: { id: electionId }
+      });
+      
+      if (!election) {
+        logger.warn({ electionId }, 'Election not found for candidate assignment');
+        res.status(201).json({ 
+          ...updatedCandidate, 
+          warning: 'Candidate created but election not found for assignment' 
+        });
+        return;
+      }
+      
+      // Determine which position to assign (first or second)
+      const updateData: any = {};
+      if (electionPosition === 'first') {
+        updateData.firstcandidate = newCandidate.id;
+      } else if (electionPosition === 'second') {
+        updateData.secondcandidate = newCandidate.id;
+      } else {
+        // If position not specified but election has empty slots, assign to the first available
+        if (election.firstcandidate === null) {
+          updateData.firstcandidate = newCandidate.id;
+        } else if (election.secondcandidate === null) {
+          updateData.secondcandidate = newCandidate.id;
+        } else {
+          logger.warn({ electionId }, 'Both candidate positions already filled');
+          res.status(201).json({ 
+            ...updatedCandidate, 
+            warning: 'Candidate created but both positions in election already filled' 
+          });
+          return;
+        }
+      }
+      
+      // Update the election with the new candidate
+      await updateElection(electionId, updateData);
+      
+      logger.info({ 
+        candidateId: newCandidate.id, 
+        electionId, 
+        position: electionPosition || (updateData.firstcandidate ? 'first' : 'second') 
+      }, 'Candidate assigned to election successfully');
+    }
 
     logger.info({ candidateId: newCandidate.id, walletId: wallet.id }, 'Candidate and wallet created successfully');
     res.status(201).json(updatedCandidate);
@@ -447,6 +498,64 @@ export const modifyElection = async (req: Request, res: Response, next: NextFunc
       electionData.closevote = new Date(electionData.closevote);
     }
 
+    // Validate candidates if they're being updated
+    if (electionData.firstcandidate !== undefined || electionData.secondcandidate !== undefined) {
+      // Validate first candidate if provided
+      if (electionData.firstcandidate !== null && electionData.firstcandidate !== undefined) {
+        const firstCandidateId = parseInt(electionData.firstcandidate, 10);
+        if (isNaN(firstCandidateId)) {
+          logger.warn({ candidateId: electionData.firstcandidate }, 'Invalid first candidate ID format');
+          res.status(400).json({ error: 'Invalid first candidate ID format' });
+          return;
+        }
+        
+        // Check if candidate exists
+        const firstCandidate = await prisma.election_candidates.findUnique({
+          where: { id: firstCandidateId }
+        });
+        
+        if (!firstCandidate) {
+          logger.warn({ candidateId: firstCandidateId }, 'First candidate not found');
+          res.status(404).json({ error: 'First candidate not found' });
+          return;
+        }
+        
+        electionData.firstcandidate = firstCandidateId;
+      }
+
+      // Validate second candidate if provided
+      if (electionData.secondcandidate !== null && electionData.secondcandidate !== undefined) {
+        const secondCandidateId = parseInt(electionData.secondcandidate, 10);
+        if (isNaN(secondCandidateId)) {
+          logger.warn({ candidateId: electionData.secondcandidate }, 'Invalid second candidate ID format');
+          res.status(400).json({ error: 'Invalid second candidate ID format' });
+          return;
+        }
+        
+        // Check if candidate exists
+        const secondCandidate = await prisma.election_candidates.findUnique({
+          where: { id: secondCandidateId }
+        });
+        
+        if (!secondCandidate) {
+          logger.warn({ candidateId: secondCandidateId }, 'Second candidate not found');
+          res.status(404).json({ error: 'Second candidate not found' });
+          return;
+        }
+        
+        electionData.secondcandidate = secondCandidateId;
+      }
+      
+      // Prevent assigning the same candidate to both positions
+      if (electionData.firstcandidate !== null && 
+          electionData.secondcandidate !== null && 
+          electionData.firstcandidate === electionData.secondcandidate) {
+        logger.warn({ candidateId: electionData.firstcandidate }, 'Cannot assign the same candidate to both positions');
+        res.status(400).json({ error: 'Cannot assign the same candidate to both positions' });
+        return;
+      }
+    }
+
     const updatedElection = await updateElection(id, electionData);
     if (!updatedElection) {
       logger.warn({ electionId: id }, 'Election not found');
@@ -553,6 +662,13 @@ export const fetchElectionPrimaryById = async (req: Request, res: Response): Pro
             election_positions: true,
             election_statuses: true
           }
+        },
+        primary_candidates: {
+          include: {
+            candidate_votes: true,
+            candidate_wallets_candidate_wallets_candidate_idToelection_candidates: true,
+            candidate_wallets_election_candidates_walletTocandidate_wallets: true
+          }
         }
       }
     });
@@ -566,5 +682,200 @@ export const fetchElectionPrimaryById = async (req: Request, res: Response): Pro
   } catch (error) {
     logger.error({ error }, 'Error fetching primary election by ID');
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// New function to assign candidates to an election
+export const assignCandidatesToElection = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const electionId = parseInt(req.params.id, 10);
+    if (isNaN(electionId)) {
+      logger.warn({ electionId: req.params.id }, 'Invalid election ID format');
+      res.status(400).json({ error: 'Invalid election ID' });
+      return;
+    }
+
+    // Validate the request body
+    const { firstCandidateId, secondCandidateId } = req.body;
+    
+    if (firstCandidateId === undefined && secondCandidateId === undefined) {
+      logger.warn('No candidate IDs provided for assignment');
+      res.status(400).json({ error: 'At least one candidate ID must be provided' });
+      return;
+    }
+    
+    // First check if the election exists
+    const existingElection = await prisma.elections.findUnique({
+      where: { id: electionId }
+    });
+    
+    if (!existingElection) {
+      logger.warn({ electionId }, 'Election not found');
+      res.status(404).json({ error: 'Election not found' });
+      return;
+    }
+    
+    // Prepare the update data
+    const updateData: any = {};
+    
+    // Process first candidate if provided
+    if (firstCandidateId !== undefined) {
+      if (firstCandidateId === null) {
+        // Allowing null to remove the candidate
+        updateData.firstcandidate = null;
+      } else {
+        const parsedFirstId = parseInt(firstCandidateId, 10);
+        if (isNaN(parsedFirstId)) {
+          logger.warn({ candidateId: firstCandidateId }, 'Invalid first candidate ID format');
+          res.status(400).json({ error: 'Invalid first candidate ID format' });
+          return;
+        }
+        
+        // Verify candidate exists
+        const firstCandidate = await prisma.election_candidates.findUnique({
+          where: { id: parsedFirstId }
+        });
+        
+        if (!firstCandidate) {
+          logger.warn({ candidateId: parsedFirstId }, 'First candidate not found');
+          res.status(404).json({ error: 'First candidate not found' });
+          return;
+        }
+        
+        updateData.firstcandidate = parsedFirstId;
+      }
+    }
+    
+    // Process second candidate if provided
+    if (secondCandidateId !== undefined) {
+      if (secondCandidateId === null) {
+        // Allowing null to remove the candidate
+        updateData.secondcandidate = null;
+      } else {
+        const parsedSecondId = parseInt(secondCandidateId, 10);
+        if (isNaN(parsedSecondId)) {
+          logger.warn({ candidateId: secondCandidateId }, 'Invalid second candidate ID format');
+          res.status(400).json({ error: 'Invalid second candidate ID format' });
+          return;
+        }
+        
+        // Verify candidate exists
+        const secondCandidate = await prisma.election_candidates.findUnique({
+          where: { id: parsedSecondId }
+        });
+        
+        if (!secondCandidate) {
+          logger.warn({ candidateId: parsedSecondId }, 'Second candidate not found');
+          res.status(404).json({ error: 'Second candidate not found' });
+          return;
+        }
+        
+        updateData.secondcandidate = parsedSecondId;
+      }
+    }
+    
+    // Prevent assigning the same candidate to both positions
+    if (updateData.firstcandidate !== null && updateData.secondcandidate !== null) {
+      const firstId = updateData.firstcandidate ?? existingElection.firstcandidate;
+      const secondId = updateData.secondcandidate ?? existingElection.secondcandidate;
+      
+      if (firstId !== null && secondId !== null && firstId === secondId) {
+        logger.warn({ candidateId: firstId }, 'Cannot assign the same candidate to both positions');
+        res.status(400).json({ error: 'Cannot assign the same candidate to both positions' });
+        return;
+      }
+    }
+
+    // Update the election with the new candidate assignments
+    const updatedElection = await updateElection(electionId, updateData);
+    
+    if (!updatedElection) {
+      logger.warn({ electionId }, 'Failed to update election with candidates');
+      res.status(500).json({ error: 'Failed to update election with candidates' });
+      return;
+    }
+
+    logger.info({ 
+      electionId, 
+      firstCandidateId: updateData.firstcandidate, 
+      secondCandidateId: updateData.secondcandidate 
+    }, 'Successfully assigned candidates to election');
+    
+    res.status(200).json(updatedElection);
+  } catch (error) {
+    logger.error({ error, electionId: req.params.id }, 'Error assigning candidates to election');
+    next(error);
+  }
+};
+
+// New function to fetch elections with their candidates
+export const fetchElectionsWithCandidates = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    logger.info('Fetching all elections with candidates');
+    
+    const elections = await prisma.elections.findMany({
+      include: {
+        election_candidates_elections_firstcandidateToelection_candidates: true,
+        election_candidates_elections_secondcandidateToelection_candidates: true,
+        election_types: true,
+        election_positions: true,
+        election_statuses: true,
+        election_snapshots: true
+      }
+    });
+    
+    // Transform the data to a more convenient structure for the frontend
+    const transformedElections = elections.map(election => {
+      return {
+        id: election.id,
+        title: election.title,
+        description: election.description,
+        reviewed: election.reviewed,
+        approved: election.approved,
+        votesactive: election.votesactive,
+        startDate: election.openvote?.toISOString(),
+        endDate: election.closevote?.toISOString(),
+        created: election.created?.toISOString(),
+        type: {
+          id: election.type,
+          name: election.election_types?.name
+        },
+        position: {
+          id: election.position,
+          title: election.election_positions?.title,
+          description: election.election_positions?.description
+        },
+        status: {
+          id: election.status,
+          name: election.election_statuses?.name
+        },
+        candidates: {
+          first: election.election_candidates_elections_firstcandidateToelection_candidates 
+            ? {
+                id: election.election_candidates_elections_firstcandidateToelection_candidates.id,
+                name: election.election_candidates_elections_firstcandidateToelection_candidates.name,
+                twitter: election.election_candidates_elections_firstcandidateToelection_candidates.twitter,
+                discord: election.election_candidates_elections_firstcandidateToelection_candidates.discord,
+                telegram: election.election_candidates_elections_firstcandidateToelection_candidates.telegram
+              }
+            : null,
+          second: election.election_candidates_elections_secondcandidateToelection_candidates
+            ? {
+                id: election.election_candidates_elections_secondcandidateToelection_candidates.id,
+                name: election.election_candidates_elections_secondcandidateToelection_candidates.name,
+                twitter: election.election_candidates_elections_secondcandidateToelection_candidates.twitter,
+                discord: election.election_candidates_elections_secondcandidateToelection_candidates.discord,
+                telegram: election.election_candidates_elections_secondcandidateToelection_candidates.telegram
+              }
+            : null
+        }
+      };
+    });
+    
+    logger.debug({ electionCount: elections.length }, 'Elections with candidates retrieved successfully');
+    res.status(200).json(transformedElections);
+  } catch (error) {
+    logger.error({ error }, 'Error fetching elections with candidates');
+    next(error);
   }
 }; 

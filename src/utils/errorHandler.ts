@@ -25,3 +25,61 @@ export const handleError = (err: any, req: Request, res: Response, next: NextFun
     ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
   });
 };
+
+/**
+ * Wraps controller handlers with standardized error handling
+ * 
+ * @param handler The controller handler function to wrap
+ * @param loggerInstance Optional custom logger instance
+ * @returns Wrapped handler with standardized error handling
+ */
+export const withErrorHandling = <T>(
+  handler: (req: Request, res: Response, next: NextFunction) => Promise<T>,
+  loggerInstance = logger
+) => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await handler(req, res, next);
+    } catch (error) {
+      loggerInstance.error({ 
+        error, 
+        path: req.path,
+        method: req.method,
+        params: req.params,
+        query: req.query
+      }, 'Controller error');
+      next(error);
+    }
+  };
+};
+
+/**
+ * Wraps controller handlers that don't use next for error handling
+ * 
+ * @param handler The controller handler function to wrap
+ * @param loggerInstance Optional custom logger instance
+ * @returns Wrapped handler with standardized error handling
+ */
+export const withDirectErrorHandling = <T>(
+  handler: (req: Request, res: Response) => Promise<T>,
+  loggerInstance = logger
+) => {
+  return async (req: Request, res: Response): Promise<void> => {
+    try {
+      await handler(req, res);
+    } catch (error) {
+      loggerInstance.error({ 
+        error, 
+        path: req.path,
+        method: req.method,
+        params: req.params,
+        query: req.query
+      }, 'Controller error');
+      
+      res.status(500).json({ 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Internal server error' 
+      });
+    }
+  };
+};

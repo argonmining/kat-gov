@@ -103,6 +103,7 @@ router.delete('/proposal/statuses/:id', proposalController.removeProposalStatus)
 // List endpoints
 router.get('/elections', electionController.fetchAllElections);
 router.get('/elections/primaries', electionController.fetchAllElectionPrimaries);
+router.get('/elections/with-candidates', electionController.fetchElectionsWithCandidates);
 router.get('/election/types', electionController.fetchAllElectionTypes);
 router.get('/election/statuses', electionController.fetchAllElectionStatuses);
 router.get('/election/positions', electionController.fetchAllElectionPositions);
@@ -127,6 +128,7 @@ router.get('/election/:id/primary', electionController.fetchElectionPrimaryById)
 router.get('/election/:id', electionController.fetchElectionById);
 router.put('/election/:id', electionController.modifyElection);
 router.delete('/election/:id', electionController.removeElection);
+router.post('/election/:id/candidates', electionController.assignCandidatesToElection);
 
 // Type, status, and position management
 router.put('/election/types/:id', electionController.modifyElectionType);
