@@ -4,6 +4,7 @@ import { runDraftCleanup } from './deleteOldDraftProposals.js';
 import activateProposalVoting from './activateProposalVoting.js';
 import { getTreasuryTransactions } from './getTreasuryTransactions.js';
 import { createElectionPrimaries } from './createElectionPrimaries.js';
+import { checkAndTransitionPrimaries } from './transitionPrimaryToGeneral.js';
 
 const logger = createModuleLogger('scheduler');
 
@@ -42,6 +43,14 @@ export async function initializeScheduledTasks() {
         logger.info('Election primaries creation completed successfully');
     } catch (error) {
         logger.error({ error }, 'Initial election primaries creation failed');
+    }
+
+    try {
+        logger.info('Running primary to general election transition');
+        await checkAndTransitionPrimaries();
+        logger.info('Primary to general election transition completed successfully');
+    } catch (error) {
+        logger.error({ error }, 'Initial primary to general election transition failed');
     }
 
     // Set up recurring schedules
@@ -92,10 +101,22 @@ export async function initializeScheduledTasks() {
             }
         });
 
+        // Primary to general election transition - every 2 hours, at minute 20
+        cron.schedule('20 */2 * * *', async () => {
+            try {
+                logger.info('Running scheduled primary to general election transition');
+                await checkAndTransitionPrimaries();
+                logger.info('Scheduled primary to general election transition completed successfully');
+            } catch (error) {
+                logger.error({ error }, 'Scheduled primary to general election transition failed');
+            }
+        });
+
         logger.info('All schedules initialized successfully');
         logger.info('Schedule times:');
         logger.info('- Draft cleanup: Every 4 hours at :00');
         logger.info('- Proposal voting: Every hour at :15');
+        logger.info('- Primary to general transition: Every 2 hours at :20');
         logger.info('- Treasury transactions: 00:30 and 12:30 daily');
         logger.info('- Election primaries: Every 3 hours at :45');
     } catch (error) {

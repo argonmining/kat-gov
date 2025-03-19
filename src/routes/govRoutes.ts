@@ -56,6 +56,7 @@ router.post('/scheduler/run/draft-cleanup', schedulerController.runDraftCleanupH
 router.post('/scheduler/run/proposal-voting', schedulerController.runProposalVotingHandler);
 router.post('/scheduler/run/treasury-transactions', schedulerController.runTreasuryTransactionsHandler);
 router.post('/scheduler/run/election-primaries', schedulerController.runElectionPrimariesHandler);
+router.post('/scheduler/run/primary-to-general', schedulerController.runPrimaryToGeneralHandler);
 
 // System maintenance
 router.post('/cleanup/draft-proposals', cleanupController.cleanupDraftProposals);
@@ -104,6 +105,7 @@ router.delete('/proposal/statuses/:id', proposalController.removeProposalStatus)
 router.get('/elections', electionController.fetchAllElections);
 router.get('/elections/primaries', electionController.fetchAllElectionPrimaries);
 router.get('/elections/with-candidates', electionController.fetchElectionsWithCandidates);
+router.get('/elections/with-primaries', electionController.fetchElectionsWithPrimaries);
 router.get('/election/types', electionController.fetchAllElectionTypes);
 router.get('/election/statuses', electionController.fetchAllElectionStatuses);
 router.get('/election/positions', electionController.fetchAllElectionPositions);
@@ -111,6 +113,7 @@ router.get('/election/candidates', electionController.fetchAllElectionCandidates
 router.get('/election/candidate/wallets', candidateController.fetchAllCandidateWallets);
 router.get('/election/candidate/nominations', candidateController.fetchAllCandidateNominations);
 router.get('/election/nomination/fee', candidateController.getCandidateNominationFee);
+router.get('/primary/:id/candidates', electionController.fetchPrimaryCandidates);
 
 // Create endpoints
 router.post('/election', electionController.submitElection);
@@ -121,6 +124,8 @@ router.post('/election/candidates', electionController.submitElectionCandidate);
 router.post('/election/candidate/wallets', candidateController.addCandidateWallet);
 router.post('/election/candidate/nominations', candidateController.submitCandidateNomination);
 router.post('/election/candidate/votes', candidateController.submitCandidateVote);
+router.post('/candidate/nominate', electionController.nominateCandidate);
+router.post('/candidate/vote', electionController.voteForCandidate);
 
 // Parameterized endpoints
 router.post('/election/:electionId/primary', electionController.createElectionPrimaryHandler);

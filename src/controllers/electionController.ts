@@ -47,33 +47,50 @@ export const submitElection = async (req: Request, res: Response): Promise<void>
     const electionData = req.body;
     logger.info({ electionData }, 'Submitting election');
     
+    // Create the parent election first
     const newElection = await createElection({
       title: electionData.title,
       description: electionData.description,
       reviewed: false,
       approved: false,
       votesactive: false,
-      openvote: electionData.startDate ? new Date(electionData.startDate) : null,
-      closevote: electionData.endDate ? new Date(electionData.endDate) : null,
+      openvote: null, // Will be set in the primary election
+      closevote: null, // Will be set in the primary election
       created: new Date(),
       type: electionData.type,
       position: electionData.position,
       firstcandidate: null,
       secondcandidate: null,
-      status: 1, // Default status
+      status: 1, // Default status (draft)
       snapshot: null
     });
+
+    // Now create the primary election automatically
+    const primaryElection = await createElectionPrimary(newElection.id);
+
+    // Update the primary with dates if provided
+    if (electionData.startDate || electionData.endDate) {
+      await prisma.election_primaries.update({
+        where: { id: primaryElection.id },
+        data: {
+          openvote: electionData.startDate ? new Date(electionData.startDate) : null,
+          closevote: electionData.endDate ? new Date(electionData.endDate) : null
+        }
+      });
+    }
 
     // Transform to match frontend format
     const transformedElection = {
       id: newElection.id,
       title: newElection.title,
       description: newElection.description,
-      startDate: newElection.openvote?.toISOString(),
-      endDate: newElection.closevote?.toISOString()
+      primaryId: primaryElection.id,
+      startDate: electionData.startDate || null,
+      endDate: electionData.endDate || null,
+      isPrimary: true
     };
 
-    logger.info({ electionId: newElection.id }, 'Election submitted successfully');
+    logger.info({ electionId: newElection.id, primaryId: primaryElection.id }, 'Election and Primary created successfully');
     res.status(201).json(transformedElection);
   } catch (error) {
     logger.error({ error, election: req.body }, 'Error submitting election');
@@ -877,5 +894,323 @@ export const fetchElectionsWithCandidates = async (req: Request, res: Response, 
   } catch (error) {
     logger.error({ error }, 'Error fetching elections with candidates');
     next(error);
+  }
+};
+
+// Add endpoint for candidate nomination
+export const nominateCandidate = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { primaryId, candidateId, hash, toaddress, amountsent } = req.body;
+    
+    if (!primaryId || !candidateId) {
+      logger.warn({ primaryId, candidateId }, 'Missing primary ID or candidate ID');
+      res.status(400).json({ error: 'Primary ID and candidate ID are required' });
+      return;
+    }
+
+    // Verify primary election exists
+    const primary = await prisma.election_primaries.findUnique({
+      where: { id: parseInt(primaryId, 10) }
+    });
+
+    if (!primary) {
+      logger.warn({ primaryId }, 'Primary election not found');
+      res.status(404).json({ error: 'Primary election not found' });
+      return;
+    }
+
+    // Verify candidate exists
+    const candidate = await prisma.election_candidates.findUnique({
+      where: { id: parseInt(candidateId, 10) }
+    });
+
+    if (!candidate) {
+      logger.warn({ candidateId }, 'Candidate not found');
+      res.status(404).json({ error: 'Candidate not found' });
+      return;
+    }
+
+    // Create the nomination
+    const nomination = await prisma.candidate_nominations.create({
+      data: {
+        created: new Date(),
+        hash: hash,
+        toaddress: toaddress,
+        amountsent: new Decimal(amountsent.toString()),
+        validvote: true,
+        candidate_id: parseInt(candidateId, 10)
+      }
+    });
+
+    // Connect candidate to primary if not already connected
+    // First check if the candidate is already in the primary
+    const candidateInPrimary = await prisma.election_primaries.findFirst({
+      where: {
+        id: parseInt(primaryId, 10),
+        primary_candidates: {
+          some: {
+            id: parseInt(candidateId, 10)
+          }
+        }
+      }
+    });
+
+    if (!candidateInPrimary) {
+      // Connect the candidate to the primary
+      await prisma.election_primaries.update({
+        where: { id: parseInt(primaryId, 10) },
+        data: {
+          primary_candidates: {
+            connect: [{ id: parseInt(candidateId, 10) }]
+          }
+        }
+      });
+
+      logger.info({ primaryId, candidateId }, 'Candidate connected to primary election');
+    }
+
+    // Update the candidate with the nomination
+    await prisma.election_candidates.update({
+      where: { id: parseInt(candidateId, 10) },
+      data: {
+        nominations: nomination.id
+      }
+    });
+
+    logger.info({ nominationId: nomination.id, primaryId, candidateId }, 'Candidate nomination recorded successfully');
+    res.status(201).json(nomination);
+  } catch (error) {
+    logger.error({ error, primaryId: req.body.primaryId, candidateId: req.body.candidateId }, 'Error nominating candidate');
+    res.status(500).json({ error: 'Failed to nominate candidate' });
+  }
+};
+
+// Add endpoint for candidate voting
+export const voteForCandidate = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { electionId, candidateId, hash, toaddress, amountsent, fromaddress } = req.body;
+    
+    if (!electionId || !candidateId) {
+      logger.warn({ electionId, candidateId }, 'Missing election ID or candidate ID');
+      res.status(400).json({ error: 'Election ID and candidate ID are required' });
+      return;
+    }
+
+    // Check if the vote is for a primary or general election
+    let isPrimary = false;
+    let primaryId: number | null = null;
+    let generalId: number | null = null;
+
+    // First, check if the electionId is a primary election
+    const primaryElection = await prisma.election_primaries.findUnique({
+      where: { id: parseInt(electionId, 10) },
+      include: {
+        election: true
+      }
+    });
+    
+    if (primaryElection) {
+      isPrimary = true;
+      primaryId = primaryElection.id;
+      generalId = primaryElection.election_id;
+    } else {
+      // Check if it's a general election
+      const generalElection = await prisma.elections.findUnique({
+        where: { id: parseInt(electionId, 10) },
+        include: {
+          primary: true
+        }
+      });
+      
+      if (!generalElection) {
+        logger.warn({ electionId }, 'Election not found');
+        res.status(404).json({ error: 'Election not found' });
+        return;
+      }
+      
+      generalId = generalElection.id;
+      
+      if (generalElection.primary) {
+        primaryId = generalElection.primary.id;
+      }
+    }
+
+    // Verify the candidate exists
+    const candidate = await prisma.election_candidates.findUnique({
+      where: { id: parseInt(candidateId, 10) }
+    });
+
+    if (!candidate) {
+      logger.warn({ candidateId }, 'Candidate not found');
+      res.status(404).json({ error: 'Candidate not found' });
+      return;
+    }
+
+    // Create a new vote
+    const voteData = {
+      created: new Date(),
+      hash,
+      toaddress,
+      amountsent: new Decimal(amountsent.toString()),
+      votescounted: 1, // Default to 1, can be adjusted based on token weight
+      validvote: true,
+      candidate_id: parseInt(candidateId, 10)
+    };
+
+    let vote;
+
+    if (isPrimary) {
+      // For primary elections, use candidate_votes table
+      vote = await prisma.candidate_votes.create({
+        data: voteData
+      });
+      
+      logger.info({ voteId: vote.id, primaryId, candidateId }, 'Primary election vote recorded successfully');
+    } else {
+      // For general elections, use election_votes table
+      const electionVoteData = {
+        ...voteData,
+        election_id: generalId
+      };
+      
+      vote = await prisma.election_votes.create({
+        data: electionVoteData
+      });
+      
+      logger.info({ voteId: vote.id, generalId, candidateId }, 'General election vote recorded successfully');
+    }
+
+    res.status(201).json(vote);
+  } catch (error) {
+    logger.error({ error, electionId: req.body.electionId, candidateId: req.body.candidateId }, 'Error recording vote');
+    res.status(500).json({ error: 'Failed to record vote' });
+  }
+};
+
+// Add endpoint to fetch elections with primary status
+export const fetchElectionsWithPrimaries = async (req: Request, res: Response): Promise<void> => {
+  try {
+    logger.info('Fetching all elections with primaries');
+    
+    const elections = await prisma.elections.findMany({
+      include: {
+        election_types: true,
+        election_positions: true,
+        election_statuses: true,
+        election_candidates_elections_firstcandidateToelection_candidates: true,
+        election_candidates_elections_secondcandidateToelection_candidates: true,
+        primary: {
+          include: {
+            election_types: true,
+            election_positions: true,
+            election_statuses: true,
+            primary_candidates: true
+          }
+        }
+      }
+    });
+
+    const transformedElections = elections.map(election => ({
+      id: election.id,
+      title: election.title || '',
+      description: election.description || '',
+      reviewed: election.reviewed || false,
+      approved: election.approved || false,
+      votesactive: election.votesactive || false,
+      openvote: election.openvote?.toISOString() || null,
+      closevote: election.closevote?.toISOString() || null,
+      created: election.created?.toISOString() || null,
+      type: election.type || null,
+      typeName: election.election_types?.name || null,
+      position: election.position || null,
+      positionName: election.election_positions?.title || null,
+      status: election.status || null,
+      statusName: election.election_statuses?.name || null,
+      firstcandidate: election.firstcandidate,
+      firstcandidateName: election.election_candidates_elections_firstcandidateToelection_candidates?.name || null,
+      secondcandidate: election.secondcandidate,
+      secondcandidateName: election.election_candidates_elections_secondcandidateToelection_candidates?.name || null,
+      primary: election.primary ? {
+        id: election.primary.id,
+        title: election.primary.title || '',
+        description: election.primary.description || '',
+        reviewed: election.primary.reviewed || false,
+        approved: election.primary.approved || false,
+        votesactive: election.primary.votesactive || false,
+        openvote: election.primary.openvote?.toISOString() || null,
+        closevote: election.primary.closevote?.toISOString() || null,
+        status: election.primary.status,
+        statusName: election.primary.election_statuses?.name || null,
+        candidateCount: election.primary.primary_candidates?.length || 0
+      } : null,
+      isPrimary: false,
+      hasActivePrimary: election.primary?.votesactive || false
+    }));
+
+    logger.debug({ electionCount: elections.length }, 'Elections with primaries retrieved successfully');
+    res.status(200).json(transformedElections);
+  } catch (error) {
+    logger.error({ error }, 'Error fetching elections with primaries');
+    res.status(500).json({ error: 'Failed to fetch elections with primaries' });
+  }
+};
+
+// Add endpoint to fetch candidates for a primary election
+export const fetchPrimaryCandidates = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const primaryId = parseInt(req.params.id, 10);
+    
+    if (isNaN(primaryId)) {
+      logger.warn({ primaryId: req.params.id }, 'Invalid primary ID format');
+      res.status(400).json({ error: 'Invalid primary ID' });
+      return;
+    }
+    
+    logger.info({ primaryId }, 'Fetching candidates for primary election');
+    
+    const primary = await prisma.election_primaries.findUnique({
+      where: { id: primaryId },
+      include: {
+        primary_candidates: {
+          include: {
+            candidate_votes: true,
+            candidate_wallets_election_candidates_walletTocandidate_wallets: true
+          }
+        }
+      }
+    });
+    
+    if (!primary) {
+      logger.warn({ primaryId }, 'Primary election not found');
+      res.status(404).json({ error: 'Primary election not found' });
+      return;
+    }
+    
+    const transformedCandidates = primary.primary_candidates.map(candidate => {
+      // Calculate vote total
+      const voteTotal = candidate.candidate_votes.reduce((sum, vote) => {
+        if (vote.validvote) {
+          return sum + (vote.votescounted || 0);
+        }
+        return sum;
+      }, 0);
+      
+      return {
+        id: candidate.id,
+        name: candidate.name || '',
+        twitter: candidate.twitter || '',
+        discord: candidate.discord || '',
+        telegram: candidate.telegram || '',
+        created: candidate.created?.toISOString() || null,
+        walletAddress: candidate.candidate_wallets_election_candidates_walletTocandidate_wallets?.address || null,
+        voteCount: voteTotal
+      };
+    });
+    
+    logger.debug({ primaryId, candidateCount: transformedCandidates.length }, 'Primary election candidates retrieved successfully');
+    res.status(200).json(transformedCandidates);
+  } catch (error) {
+    logger.error({ error, primaryId: req.params.id }, 'Error fetching primary election candidates');
+    res.status(500).json({ error: 'Failed to fetch primary election candidates' });
   }
 }; 

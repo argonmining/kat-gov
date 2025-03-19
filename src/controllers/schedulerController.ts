@@ -4,6 +4,7 @@ import { runDraftCleanup } from '../scheduler/deleteOldDraftProposals.js';
 import { activateProposalVoting } from '../scheduler/activateProposalVoting.js';
 import { getTreasuryTransactions } from '../scheduler/getTreasuryTransactions.js';
 import { createElectionPrimaries } from '../scheduler/createElectionPrimaries.js';
+import { checkAndTransitionPrimaries } from '../scheduler/transitionPrimaryToGeneral.js';
 import { withDirectErrorHandling } from '../utils/errorHandler.js';
 
 const logger = createModuleLogger('schedulerController');
@@ -43,8 +44,15 @@ const _runElectionPrimariesHandler = async (req: Request, res: Response): Promis
   res.status(200).json(result);
 };
 
+const _runPrimaryToGeneralHandler = async (req: Request, res: Response): Promise<void> => {
+  logger.info('Manual trigger: primary to general election transition');
+  const result = await checkAndTransitionPrimaries();
+  res.status(200).json(result);
+};
+
 // Exported handlers with error handling
 export const runDraftCleanupHandler = withDirectErrorHandling(_runDraftCleanupHandler, logger);
 export const runProposalVotingHandler = withDirectErrorHandling(_runProposalVotingHandler, logger);
 export const runTreasuryTransactionsHandler = withDirectErrorHandling(_runTreasuryTransactionsHandler, logger);
-export const runElectionPrimariesHandler = withDirectErrorHandling(_runElectionPrimariesHandler, logger); 
+export const runElectionPrimariesHandler = withDirectErrorHandling(_runElectionPrimariesHandler, logger);
+export const runPrimaryToGeneralHandler = withDirectErrorHandling(_runPrimaryToGeneralHandler, logger); 
