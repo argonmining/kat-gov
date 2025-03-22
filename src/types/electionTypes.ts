@@ -37,6 +37,7 @@ export interface PrimaryElection {
   snapshot: number | null;
   parent_election_id: number;
   candidates: ElectionCandidate[];
+  candidate_count: number;
   election: {
     id: number;
     title: string;
@@ -52,6 +53,7 @@ export interface PrimaryElection {
     status: number;
     snapshot: number | null;
     wallet: string | null;
+    candidate_count: number;
   };
 }
 
@@ -68,6 +70,10 @@ export interface ElectionCandidate {
   status: number | null;
   wallet: number | null;
   nominations: number | null;
+  candidate_wallets_candidate_wallets_candidate_idToelection_candidates?: Array<{
+    address: string;
+  }>;
+  candidate_votes?: CandidateVote[];
 }
 
 export interface ElectionPosition {

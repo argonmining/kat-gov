@@ -32,6 +32,7 @@ model candidate_votes {
   created              DateTime?            @db.Timestamptz(6)
   hash                 String?              @unique @db.VarChar(255)
   toaddress            String?              @db.VarChar(255)
+  fromaddress          String?              @db.VarChar(255)
   amountsent           Decimal?             @db.Decimal
   votescounted         Int?
   validvote            Boolean?
@@ -41,6 +42,7 @@ model candidate_votes {
   election_snapshots   election_snapshots?  @relation(fields: [election_snapshot_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([candidate_id], map: "idx_candidate_votes_candidate_id")
+  @@index([fromaddress], map: "idx_candidate_votes_fromaddress")
 }
 
 model candidate_wallets {

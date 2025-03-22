@@ -80,6 +80,7 @@ router.post('/proposal/types', proposalController.addProposalType);
 router.post('/proposal/statuses', proposalController.addProposalStatus);
 router.post('/proposal/votes/yes', proposalController.submitProposalYesVote);
 router.post('/proposal/votes/no', proposalController.submitProposalNoVote);
+
 router.post('/proposal/nomination/create', proposalController.verifyNominationTransaction);
 
 // Parameterized endpoints
@@ -134,6 +135,7 @@ router.get('/election/:id', electionController.fetchElectionById);
 router.put('/election/:id', electionController.modifyElection);
 router.delete('/election/:id', electionController.removeElection);
 router.post('/election/:id/candidates', electionController.assignCandidatesToElection);
+router.get('/election/:id/candidates', electionController.fetchElectionCandidatesByElectionId);
 
 // Type, status, and position management
 router.put('/election/types/:id', electionController.modifyElectionType);

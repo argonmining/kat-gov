@@ -2,11 +2,10 @@ import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { createModuleLogger } from '../utils/logger.js';
 import { getTreasuryTransactions } from '../scheduler/getTreasuryTransactions.js';
 import { config } from '../config/env.js';
-import { PrismaClient } from '@prisma/client';
 import { TreasuryTransaction } from '../types/treasuryTypes.js';
 import { withErrorHandling } from '../utils/errorHandler.js';
+import { prisma } from '../config/prisma.js';
 
-const prisma = new PrismaClient();
 const logger = createModuleLogger('treasuryController');
 
 interface WalletTransactionsParams {
@@ -29,32 +28,29 @@ const _getTreasuryWallets = async (req: Request, res: Response, next: NextFuncti
 };
 
 const _getWalletTransactions = async (req: Request, res: Response, next: NextFunction) => {
-    const { address } = req.params as unknown as WalletTransactionsParams;
-    logger.info({ address }, 'Fetching treasury transactions for wallet');
+    try {
+        const { address } = req.params as unknown as WalletTransactionsParams;
+        logger.info({ address }, 'Fetching treasury transactions for wallet');
 
-    // Verify this is actually a treasury wallet
-    if (!config.kaspa.treasuryWallets.some(wallet => wallet.address === address)) {
-        logger.warn({ address }, 'Attempted to fetch transactions for non-treasury wallet');
-        res.status(403).json({ error: 'Not a treasury wallet' });
-        return;
-    }
-
-    const transactions = await prisma.treasury_transactions.findMany({
-        where: {
-            OR: [
-                { description: { contains: address } }
-            ]
-        },
-        orderBy: {
-            created: 'desc'
+        // Verify this is actually a treasury wallet
+        if (!config.kaspa.treasuryWallets.some(wallet => wallet.address === address)) {
+            logger.warn({ address }, 'Attempted to fetch transactions for non-treasury wallet');
+            res.status(403).json({ error: 'Not a treasury wallet' });
+            return;
         }
-    }) as unknown as TreasuryTransaction[];
 
-    logger.info({ address, transactionCount: transactions.length }, 'Treasury transactions fetched successfully');
-    res.status(200).json(transactions);
-    
-    // Close DB connection
-    await prisma.$disconnect();
+        const transactions = await prisma.treasury_transactions.findMany({
+            orderBy: {
+                created: 'desc'
+            }
+        }) as unknown as TreasuryTransaction[];
+
+        logger.info({ address, transactionCount: transactions.length }, 'Treasury transactions fetched successfully');
+        res.status(200).json(transactions);
+    } catch (error) {
+        logger.error({ error, address: req.params.address }, 'Error fetching treasury transactions');
+        res.status(500).json({ error: 'Failed to fetch treasury transactions' });
+    }
 };
 
 // Exported handlers with error handling

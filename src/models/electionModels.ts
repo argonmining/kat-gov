@@ -165,6 +165,63 @@ export const getAllElectionCandidates = async (): Promise<ElectionCandidate[]> =
   }
 };
 
+export const getElectionCandidatesByElectionId = async (electionId: number): Promise<ElectionCandidate[]> => {
+  try {
+    logger.info({ electionId }, 'Fetching candidates for election');
+    
+    // Get the election to find first and second candidates
+    const election = await prisma.elections.findUnique({
+      where: { id: electionId },
+      select: {
+        firstcandidate: true,
+        secondcandidate: true
+      }
+    });
+
+    if (!election) {
+      logger.warn({ electionId }, 'Election not found');
+      return [];
+    }
+
+    // Get candidates based on firstcandidate and secondcandidate IDs
+    const candidateIds = [election.firstcandidate, election.secondcandidate]
+      .filter((id): id is number => id !== null);
+
+    if (candidateIds.length === 0) {
+      logger.debug({ electionId }, 'No candidates found for election');
+      return [];
+    }
+
+    const candidates = await prisma.election_candidates.findMany({
+      where: {
+        id: {
+          in: candidateIds
+        }
+      },
+      include: {
+        elections_elections_firstcandidateToelection_candidates: true,
+        elections_elections_secondcandidateToelection_candidates: true,
+        candidate_nominations_candidate_nominations_candidate_idToelection_candidates: true,
+        candidate_nominations_election_candidates_nominationsTocandidate_nominations: true,
+        candidate_votes: true,
+        candidate_wallets_candidate_wallets_candidate_idToelection_candidates: true,
+        candidate_wallets_election_candidates_walletTocandidate_wallets: true,
+        candidates_of_primaries: true
+      }
+    });
+
+    logger.debug({ 
+      electionId, 
+      candidateCount: candidates.length 
+    }, 'Retrieved candidates for election');
+
+    return candidates as unknown as ElectionCandidate[];
+  } catch (error) {
+    logger.error({ error, electionId }, 'Error fetching election candidates');
+    throw new Error('Could not fetch election candidates');
+  }
+};
+
 export const createElectionCandidate = async (candidate: Omit<ElectionCandidate, 'id'> & { primaryId?: number }): Promise<ElectionCandidate> => {
   try {
     const { name, twitter, discord, telegram, created, data, type, status, wallet, nominations, primaryId } = candidate;
@@ -209,9 +266,23 @@ export const createElectionCandidate = async (candidate: Omit<ElectionCandidate,
 export const updateElectionCandidate = async (id: number, candidate: Partial<ElectionCandidate>): Promise<ElectionCandidate | null> => {
   try {
     logger.info({ id, ...candidate }, 'Updating election candidate');
+    
+    // Extract only the updatable fields from the candidate object
+    const updateData = {
+      name: candidate.name,
+      twitter: candidate.twitter,
+      discord: candidate.discord,
+      telegram: candidate.telegram,
+      type: candidate.type,
+      status: candidate.status,
+      wallet: candidate.wallet,
+      nominations: candidate.nominations,
+      data: candidate.data
+    };
+
     const result = await prisma.election_candidates.update({
       where: { id },
-      data: candidate,
+      data: updateData,
       include: {
         elections_elections_firstcandidateToelection_candidates: true,
         elections_elections_secondcandidateToelection_candidates: true,
@@ -703,53 +774,70 @@ export const getAllElectionPrimaries = async (): Promise<PrimaryElection[]> => {
       return [];
     }
 
-    return result
+    const primaries = await Promise.all(result
       .filter(primary => primary.election !== null)
-      .map(primary => ({
-        id: primary.id,
-        title: primary.title || '',
-        description: primary.description || '',
-        type: primary.type || 0,
-        position: primary.position || 0,
-        status: primary.status || 0,
-        reviewed: primary.reviewed || false,
-        approved: primary.approved || false,
-        votesactive: primary.votesactive || false,
-        openvote: primary.openvote,
-        closevote: primary.closevote,
-        created: primary.created || new Date(),
-        snapshot: primary.snapshot,
-        candidates: primary.primary_candidates.map(candidate => ({
-          id: candidate.id,
-          name: candidate.name || '',
-          twitter: candidate.twitter || '',
-          discord: candidate.discord || '',
-          telegram: candidate.telegram || '',
-          created: candidate.created || new Date(),
-          data: candidate.data ? Buffer.from(candidate.data) : Buffer.alloc(0),
-          type: candidate.type || 0,
-          status: candidate.status || 0,
-          wallet: candidate.wallet || 0,
-          nominations: candidate.nominations || 0
-        })),
-        parent_election_id: primary.election_id,
-        election: {
-          id: primary.election.id,
-          title: primary.election.title || '',
-          description: primary.election.description || '',
-          reviewed: primary.election.reviewed || false,
-          approved: primary.election.approved || false,
-          votesactive: primary.election.votesactive || false,
-          openvote: primary.election.openvote?.toISOString() || null,
-          closevote: primary.election.closevote?.toISOString() || null,
-          created: primary.election.created?.toISOString() || new Date().toISOString(),
-          type: primary.election.type || 0,
-          position: primary.election.position || 0,
-          status: primary.election.status || 0,
-          snapshot: primary.election.snapshot,
-          wallet: null
-        }
+      .map(async primary => {
+        // Get candidate count using Prisma's count method
+        const count = await prisma.election_candidates.count({
+          where: {
+            candidates_of_primaries: {
+              some: {
+                id: primary.id
+              }
+            }
+          }
+        });
+
+        return {
+          id: primary.id,
+          title: primary.title || '',
+          description: primary.description || '',
+          type: primary.type || 0,
+          position: primary.position || 0,
+          status: primary.status || 0,
+          reviewed: primary.reviewed || false,
+          approved: primary.approved || false,
+          votesactive: primary.votesactive || false,
+          openvote: primary.openvote,
+          closevote: primary.closevote,
+          created: primary.created || new Date(),
+          snapshot: primary.snapshot,
+          candidate_count: count,
+          candidates: primary.primary_candidates.map(candidate => ({
+            id: candidate.id,
+            name: candidate.name || '',
+            twitter: candidate.twitter || '',
+            discord: candidate.discord || '',
+            telegram: candidate.telegram || '',
+            created: candidate.created || new Date(),
+            data: candidate.data ? Buffer.from(candidate.data) : Buffer.alloc(0),
+            type: candidate.type || 0,
+            status: candidate.status || 0,
+            wallet: candidate.wallet || 0,
+            nominations: candidate.nominations || 0
+          })),
+          parent_election_id: primary.election_id,
+          election: {
+            id: primary.election.id,
+            title: primary.election.title || '',
+            description: primary.election.description || '',
+            reviewed: primary.election.reviewed || false,
+            approved: primary.election.approved || false,
+            votesactive: primary.election.votesactive || false,
+            openvote: primary.election.openvote?.toISOString() || null,
+            closevote: primary.election.closevote?.toISOString() || null,
+            created: primary.election.created?.toISOString() || new Date().toISOString(),
+            type: primary.election.type || 0,
+            position: primary.election.position || 0,
+            status: primary.election.status || 0,
+            snapshot: primary.election.snapshot,
+            wallet: null,
+            candidate_count: count,
+          }
+        };
       }));
+
+    return primaries;
   } catch (error) {
     logger.error({ error }, 'Error fetching election primaries');
     throw error;
