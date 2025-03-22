@@ -31,6 +31,7 @@ CREATE TABLE "candidate_votes" (
     "validvote" BOOLEAN,
     "candidate_id" INTEGER,
     "election_snapshot_id" INTEGER,
+    "fromaddress" VARCHAR(255),
 
     CONSTRAINT "candidate_votes_pkey" PRIMARY KEY ("id")
 );
@@ -302,6 +303,9 @@ CREATE UNIQUE INDEX "candidate_votes_hash_key" ON "candidate_votes"("hash");
 CREATE INDEX "idx_candidate_votes_candidate_id" ON "candidate_votes"("candidate_id");
 
 -- CreateIndex
+CREATE INDEX "idx_candidate_votes_fromaddress" ON "candidate_votes"("fromaddress");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "candidate_wallets_address_key" ON "candidate_wallets"("address");
 
 -- CreateIndex
@@ -330,6 +334,9 @@ CREATE UNIQUE INDEX "proposal_nominations_hash_key" ON "proposal_nominations"("h
 
 -- CreateIndex
 CREATE UNIQUE INDEX "proposal_nominations_fromaddress_proposal_id_key" ON "proposal_nominations"("fromaddress", "proposal_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "unique_fromaddress_proposal_id" ON "proposal_nominations"("fromaddress", "proposal_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "proposal_statuses_name_key" ON "proposal_statuses"("name");
@@ -482,10 +489,10 @@ ALTER TABLE "proposals" ADD CONSTRAINT "proposals_wallet_fkey" FOREIGN KEY ("wal
 ALTER TABLE "proposals" ADD CONSTRAINT "proposals_yes_votes_fkey" FOREIGN KEY ("yes_votes") REFERENCES "proposal_yes_votes"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 -- AddForeignKey
-ALTER TABLE "election_votes" ADD CONSTRAINT "election_votes_election_id_fkey" FOREIGN KEY ("election_id") REFERENCES "elections"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
+ALTER TABLE "election_votes" ADD CONSTRAINT "election_votes_candidate_id_fkey" FOREIGN KEY ("candidate_id") REFERENCES "election_candidates"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 -- AddForeignKey
-ALTER TABLE "election_votes" ADD CONSTRAINT "election_votes_candidate_id_fkey" FOREIGN KEY ("candidate_id") REFERENCES "election_candidates"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
+ALTER TABLE "election_votes" ADD CONSTRAINT "election_votes_election_id_fkey" FOREIGN KEY ("election_id") REFERENCES "elections"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE "__election_candidatesToelection_primaries" ADD CONSTRAINT "__election_candidatesToelection_primaries_A_fkey" FOREIGN KEY ("A") REFERENCES "election_candidates"("id") ON DELETE CASCADE ON UPDATE CASCADE;

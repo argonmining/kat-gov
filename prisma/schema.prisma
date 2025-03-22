@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 model candidate_nominations {
@@ -32,12 +33,12 @@ model candidate_votes {
   created              DateTime?            @db.Timestamptz(6)
   hash                 String?              @unique @db.VarChar(255)
   toaddress            String?              @db.VarChar(255)
-  fromaddress          String?              @db.VarChar(255)
   amountsent           Decimal?             @db.Decimal
   votescounted         Int?
   validvote            Boolean?
   candidate_id         Int?
   election_snapshot_id Int?
+  fromaddress          String?              @db.VarChar(255)
   election_candidates  election_candidates? @relation(fields: [candidate_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   election_snapshots   election_snapshots?  @relation(fields: [election_snapshot_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
@@ -58,28 +59,29 @@ model candidate_wallets {
 }
 
 model election_candidates {
-  id                                                                            Int                     @id @default(autoincrement())
-  name                                                                          String?                 @db.VarChar(255)
-  twitter                                                                       String?                 @db.VarChar(255)
-  discord                                                                       String?                 @db.VarChar(255)
-  telegram                                                                      String?                 @db.VarChar(255)
-  created                                                                       DateTime?               @db.Timestamptz(6)
+  id                                                                            Int                                       @id @default(autoincrement())
+  name                                                                          String?                                   @db.VarChar(255)
+  twitter                                                                       String?                                   @db.VarChar(255)
+  discord                                                                       String?                                   @db.VarChar(255)
+  telegram                                                                      String?                                   @db.VarChar(255)
+  created                                                                       DateTime?                                 @db.Timestamptz(6)
   data                                                                          Bytes?
   type                                                                          Int?
   status                                                                        Int?
   wallet                                                                        Int?
   nominations                                                                   Int?
-  candidate_nominations_candidate_nominations_candidate_idToelection_candidates candidate_nominations[] @relation("candidate_nominations_candidate_idToelection_candidates")
+  election_candidatesToelection_primaries                                       election_candidatesToelection_primaries[]
+  candidate_nominations_candidate_nominations_candidate_idToelection_candidates candidate_nominations[]                   @relation("candidate_nominations_candidate_idToelection_candidates")
   candidate_votes                                                               candidate_votes[]
-  election_votes                                                                election_votes[]        @relation("election_votes_to_candidates")
-  candidate_wallets_candidate_wallets_candidate_idToelection_candidates         candidate_wallets[]     @relation("candidate_wallets_candidate_idToelection_candidates")
-  candidate_nominations_election_candidates_nominationsTocandidate_nominations  candidate_nominations?  @relation("election_candidates_nominationsTocandidate_nominations", fields: [nominations], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  candidate_statuses_election_candidates_statusTocandidate_statuses             candidate_statuses?     @relation("election_candidates_statusTocandidate_statuses", fields: [status], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  candidate_statuses_election_candidates_typeTocandidate_statuses               candidate_statuses?     @relation("election_candidates_typeTocandidate_statuses", fields: [type], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  candidate_wallets_election_candidates_walletTocandidate_wallets               candidate_wallets?      @relation("election_candidates_walletTocandidate_wallets", fields: [wallet], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  elections_elections_firstcandidateToelection_candidates                       elections[]             @relation("elections_firstcandidateToelection_candidates")
-  elections_elections_secondcandidateToelection_candidates                      elections[]             @relation("elections_secondcandidateToelection_candidates")
-  candidates_of_primaries                                                       election_primaries[]    @relation("_election_candidatesToelection_primaries")
+  candidate_wallets_candidate_wallets_candidate_idToelection_candidates         candidate_wallets[]                       @relation("candidate_wallets_candidate_idToelection_candidates")
+  candidate_nominations_election_candidates_nominationsTocandidate_nominations  candidate_nominations?                    @relation("election_candidates_nominationsTocandidate_nominations", fields: [nominations], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  candidate_statuses_election_candidates_statusTocandidate_statuses             candidate_statuses?                       @relation("election_candidates_statusTocandidate_statuses", fields: [status], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  candidate_statuses_election_candidates_typeTocandidate_statuses               candidate_statuses?                       @relation("election_candidates_typeTocandidate_statuses", fields: [type], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  candidate_wallets_election_candidates_walletTocandidate_wallets               candidate_wallets?                        @relation("election_candidates_walletTocandidate_wallets", fields: [wallet], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_votes                                                                election_votes[]                          @relation("election_votes_to_candidates")
+  elections_elections_firstcandidateToelection_candidates                       elections[]                               @relation("elections_firstcandidateToelection_candidates")
+  elections_elections_secondcandidateToelection_candidates                      elections[]                               @relation("elections_secondcandidateToelection_candidates")
+  candidates_of_primaries                                                       election_primaries[] @relation("_election_candidatesToelection_primaries")
 
   @@index([wallet], map: "idx_election_candidates_wallet")
 }
@@ -94,26 +96,27 @@ model election_positions {
 }
 
 model election_primaries {
-  id                 Int                   @id @default(autoincrement())
-  election_id        Int                   @unique
-  title              String?               @db.VarChar(255)
-  description        String?
-  reviewed           Boolean?              @default(false)
-  approved           Boolean?              @default(false)
-  votesactive        Boolean?              @default(false)
-  openvote           DateTime?             @db.Timestamptz(6)
-  closevote          DateTime?             @db.Timestamptz(6)
-  created            DateTime?             @db.Timestamptz(6)
-  type               Int?
-  position           Int?
-  status             Int?
-  snapshot           Int?
-  election           elections             @relation(fields: [election_id], references: [id])
-  primary_candidates election_candidates[] @relation("_election_candidatesToelection_primaries")
-  election_positions election_positions?   @relation(fields: [position], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  election_snapshots election_snapshots?   @relation(fields: [snapshot], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  election_statuses  election_statuses?    @relation(fields: [status], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  election_types     election_types?       @relation(fields: [type], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id                                      Int                                       @id @default(autoincrement())
+  election_id                             Int                                       @unique
+  title                                   String?                                   @db.VarChar(255)
+  description                             String?
+  reviewed                                Boolean?                                  @default(false)
+  approved                                Boolean?                                  @default(false)
+  votesactive                             Boolean?                                  @default(false)
+  openvote                                DateTime?                                 @db.Timestamptz(6)
+  closevote                               DateTime?                                 @db.Timestamptz(6)
+  created                                 DateTime?                                 @db.Timestamptz(6)
+  type                                    Int?
+  position                                Int?
+  status                                  Int?
+  snapshot                                Int?
+  election_candidatesToelection_primaries election_candidatesToelection_primaries[]
+  election                                elections                                 @relation(fields: [election_id], references: [id])
+  election_positions                      election_positions?                       @relation(fields: [position], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_snapshots                      election_snapshots?                       @relation(fields: [snapshot], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_statuses                       election_statuses?                        @relation(fields: [status], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  election_types                          election_types?                           @relation(fields: [type], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  primary_candidates                                election_candidates[] @relation("_election_candidatesToelection_primaries")
 }
 
 model election_snapshots {
@@ -159,14 +162,14 @@ model elections {
   secondcandidate                                                    Int?
   status                                                             Int?
   snapshot                                                           Int?
+  primary                                                            election_primaries?
+  election_votes                                                     election_votes[]
   election_candidates_elections_firstcandidateToelection_candidates  election_candidates? @relation("elections_firstcandidateToelection_candidates", fields: [firstcandidate], references: [id], onDelete: NoAction, onUpdate: NoAction)
   election_positions                                                 election_positions?  @relation(fields: [position], references: [id], onDelete: NoAction, onUpdate: NoAction)
   election_candidates_elections_secondcandidateToelection_candidates election_candidates? @relation("elections_secondcandidateToelection_candidates", fields: [secondcandidate], references: [id], onDelete: NoAction, onUpdate: NoAction)
   election_snapshots                                                 election_snapshots?  @relation(fields: [snapshot], references: [id], onDelete: NoAction, onUpdate: NoAction)
   election_statuses                                                  election_statuses?   @relation(fields: [status], references: [id], onDelete: NoAction, onUpdate: NoAction)
   election_types                                                     election_types?      @relation(fields: [type], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  election_votes                                                     election_votes[]
-  primary                                                            election_primaries?
 }
 
 model proposal_no_votes {
@@ -199,6 +202,7 @@ model proposal_nominations {
   proposals   proposals? @relation(fields: [proposal_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([fromaddress, proposal_id])
+  @@unique([fromaddress, proposal_id], map: "unique_fromaddress_proposal_id")
 }
 
 model proposal_snapshots {
@@ -300,8 +304,8 @@ model election_votes {
   amountsent   Decimal             @db.Decimal
   created      DateTime            @db.Timestamptz(6)
   validvote    Boolean             @default(true)
-  elections    elections           @relation(fields: [election_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   candidates   election_candidates @relation("election_votes_to_candidates", fields: [candidate_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  elections    elections           @relation(fields: [election_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([election_id], map: "idx_election_votes_election_id")
   @@index([candidate_id], map: "idx_election_votes_candidate_id")
@@ -321,4 +325,17 @@ model treasury_transactions {
   @@index([type], map: "idx_treasury_transactions_type")
   @@index([ticker], map: "idx_treasury_transactions_ticker")
   @@index([type, ticker], map: "idx_treasury_transactions_type_ticker")
+}
+
+model election_candidatesToelection_primaries {
+  A                   Int
+  B                   Int
+  election_candidates election_candidates @relation(fields: [A], references: [id], onDelete: Cascade)
+  election_primaries  election_primaries  @relation(fields: [B], references: [id], onDelete: Cascade)
+
+  @@id([A, B], map: "__election_candidatesToelection_primaries_AB_pkey")
+  @@unique([A, B], map: "_election_candidatesToelection_primaries_AB_unique")
+  @@index([B], map: "__election_candidatesToelection_primaries_B_index")
+  @@index([B], map: "_election_candidatesToelection_primaries_B_index")
+  @@map("__election_candidatesToelection_primaries")
 }

@@ -179,3 +179,4 @@ bun.lockb
 wasm/
 scripts/
 package-lock.json
+katgovkdao_backup.dump
