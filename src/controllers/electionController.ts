@@ -26,7 +26,8 @@ import {
   updateElection,
   getElectionById,
   getAllElectionPrimaries,
-  createElectionPrimary
+  createElectionPrimary,
+  getElectionCandidatesByElectionId
 } from '../models/electionModels.js';
 import {
   Election,
@@ -38,6 +39,9 @@ import {
 } from '../types/electionTypes.js';
 import { createKaspaWallet } from '../utils/walletUtils.js';
 import { createCandidateWallet } from '../models/candidateModels.js';
+import { verifyTransaction, verifyTransactionByHash, convertToChainAmount } from '../utils/transactionVerificationUtils.js';
+import { config } from '../config/env.js';
+import { calculateVoteWeight } from '../utils/voteCalculator.js';
 
 const logger = createModuleLogger('electionController');
 
@@ -117,7 +121,8 @@ export const fetchAllElections = async (req: Request, res: Response): Promise<vo
       openvote: election.openvote?.toISOString(),
       closevote: election.closevote?.toISOString(),
       firstcandidate: election.firstcandidate,
-      secondcandidate: election.secondcandidate
+      secondcandidate: election.secondcandidate,
+      created: election.created?.toISOString(),
     }));
 
     logger.debug({ electionCount: elections.length }, 'Elections retrieved successfully');
@@ -160,79 +165,133 @@ export const fetchAllElectionCandidates = async (req: Request, res: Response, ne
   }
 };
 
+export const fetchElectionCandidatesByElectionId = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const electionId = parseInt(req.params.id, 10);
+    
+    if (isNaN(electionId)) {
+      logger.warn({ electionId: req.params.electionId }, 'Invalid election ID format');
+      res.status(400).json({ error: 'Invalid election ID' });
+      return;
+    }
+
+    logger.info({ electionId }, 'Fetching candidates for election');
+    const candidates = await getElectionCandidatesByElectionId(electionId);
+
+    // Transform candidates to include wallet information
+    const transformedCandidates = candidates.map(candidate => ({
+      id: candidate.id,
+      name: candidate.name || '',
+      twitter: candidate.twitter || '',
+      discord: candidate.discord || '',
+      telegram: candidate.telegram || '',
+      created: candidate.created,
+      type: candidate.type,
+      status: candidate.status,
+      wallet: candidate.wallet,
+      nominations: candidate.nominations,
+      walletAddress: candidate.candidate_wallets_candidate_wallets_candidate_idToelection_candidates?.[0]?.address || null,
+      votes: candidate.candidate_votes || []
+    }));
+
+    logger.debug({ 
+      electionId,
+      candidateCount: candidates.length 
+    }, 'Election candidates retrieved successfully');
+    
+    res.status(200).json(transformedCandidates);
+  } catch (error) {
+    logger.error({ error, electionId: req.params.electionId }, 'Error fetching election candidates');
+    next(error);
+  }
+};
+
 export const submitElectionCandidate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const candidate: Omit<ElectionCandidate, 'id'> = req.body;
-    const { assignToElection, electionPosition } = req.body;
-    logger.info({ candidate, assignToElection, electionPosition }, 'Submitting election candidate');
+    const { name, description, twitter, discord, telegram,  data, status, type } = req.body;
+    logger.info({ name, description, twitter, discord, telegram,  data, status, type }, 'Submitting election candidate');
     
-    // Create the candidate first
-    const newCandidate = await createElectionCandidate({
-      ...candidate,
-      created: new Date()
+    // Verify the transaction before proceeding
+    if (!data?.address || !data?.expectedAmount) {
+      logger.warn({ data }, 'Missing required fields');
+      res.status(400).json({ error: 'Transaction details and verification details are required' });
+      return;
+    }
+
+    // Convert expectedAmount to chain format
+    const chainAmount = convertToChainAmount(data.expectedAmount.toString());
+    logger.info({ chainAmount }, 'Chain amount');
+    const verificationResult = await verifyTransaction(data.address, chainAmount);
+    if (!verificationResult.isValid) {
+      logger.warn({ verificationResult }, 'Transaction verification failed');
+      res.status(400).json({ error: verificationResult.error || 'Transaction verification failed' });
+      return;
+    }
+
+    // Create a nomination record first
+    const nomination = await prisma.candidate_nominations.create({
+      data: {
+        amountsent: new Decimal(chainAmount),
+        validvote: true,
+        created: new Date().toISOString(),
+        hash: verificationResult.hash,
+        toaddress: data.address
+      }
     });
 
+    logger.info({ nomination }, 'nomination');
+
+    // Create the candidate with the nomination ID
+    const newCandidate = await createElectionCandidate({
+      name,
+      twitter: twitter || null,
+      discord: discord || null,
+      telegram: telegram || null,
+      created: new Date(),
+      data: Buffer.from(JSON.stringify({
+        ...data,
+        expectedAmount: chainAmount, // Store the chain format amount
+        transactionHash: verificationResult.hash // Store the transaction hash in the data
+      })),
+      type: type || 1,
+      status: status || 1,
+      wallet: null, // Will be updated after wallet creation
+      nominations: nomination.id // Link to the nomination record
+    });
+
+    // Update the nomination with the candidate ID
+    await prisma.candidate_nominations.update({
+      where: { id: nomination.id },
+      data: {
+        candidate_id: newCandidate.id
+      }
+    });
+
+   
+      logger.info({ primaryId: data.primaryId }, 'Primary ID');
+      logger.info({ newCandidate }, 'newCandidate');
+      await prisma.$executeRaw`
+        INSERT INTO "__election_candidatesToelection_primaries" ("A", "B")
+        VALUES (${newCandidate.id}, ${data.primaryId})
+      `;
+      logger.info('Candidate connected to primary');
+   
+
     // Then create a new Kaspa wallet and associate it with the candidate
-    const { address, encryptedPrivateKey } = await createKaspaWallet();
-    const wallet = await createCandidateWallet(address, encryptedPrivateKey, newCandidate.id);
+    const { address: walletAddress, encryptedPrivateKey } = await createKaspaWallet();
+    const wallet = await createCandidateWallet(walletAddress, encryptedPrivateKey, newCandidate.id);
     
     // Update the candidate with the wallet ID
     const updatedCandidate = await updateElectionCandidate(newCandidate.id, {
       wallet: wallet.id
     });
 
-    // If assignToElection is provided, assign the candidate to the election
-    if (assignToElection && !isNaN(parseInt(assignToElection, 10))) {
-      const electionId = parseInt(assignToElection, 10);
-      
-      // Verify the election exists
-      const election = await prisma.elections.findUnique({
-        where: { id: electionId }
-      });
-      
-      if (!election) {
-        logger.warn({ electionId }, 'Election not found for candidate assignment');
-        res.status(201).json({ 
-          ...updatedCandidate, 
-          warning: 'Candidate created but election not found for assignment' 
-        });
-        return;
-      }
-      
-      // Determine which position to assign (first or second)
-      const updateData: any = {};
-      if (electionPosition === 'first') {
-        updateData.firstcandidate = newCandidate.id;
-      } else if (electionPosition === 'second') {
-        updateData.secondcandidate = newCandidate.id;
-      } else {
-        // If position not specified but election has empty slots, assign to the first available
-        if (election.firstcandidate === null) {
-          updateData.firstcandidate = newCandidate.id;
-        } else if (election.secondcandidate === null) {
-          updateData.secondcandidate = newCandidate.id;
-        } else {
-          logger.warn({ electionId }, 'Both candidate positions already filled');
-          res.status(201).json({ 
-            ...updatedCandidate, 
-            warning: 'Candidate created but both positions in election already filled' 
-          });
-          return;
-        }
-      }
-      
-      // Update the election with the new candidate
-      await updateElection(electionId, updateData);
-      
-      logger.info({ 
-        candidateId: newCandidate.id, 
-        electionId, 
-        position: electionPosition || (updateData.firstcandidate ? 'first' : 'second') 
-      }, 'Candidate assigned to election successfully');
-    }
-
-    logger.info({ candidateId: newCandidate.id, walletId: wallet.id }, 'Candidate and wallet created successfully');
-    res.status(201).json(updatedCandidate);
+    logger.info({ candidateId: newCandidate.id }, 'Election candidate created successfully');
+    res.status(201).json({
+      ...updatedCandidate,
+      address: data.address,
+      expectedAmount: chainAmount
+    });
   } catch (error) {
     logger.error({ error, candidate: req.body }, 'Error submitting election candidate');
     next(error);
@@ -630,7 +689,9 @@ export const fetchAllElectionPrimaries = async (req: Request, res: Response): Pr
       approved: primary.approved,
       votesactive: primary.votesactive,
       openvote: primary.openvote?.toISOString(),
-      closevote: primary.closevote?.toISOString()
+      closevote: primary.closevote?.toISOString(),
+      created: primary.created?.toISOString(),
+      candidates_count: primary.candidate_count || 0  
     }));
 
     logger.debug({ primaryCount: primaries.length }, 'Election primaries retrieved successfully');
@@ -988,13 +1049,55 @@ export const nominateCandidate = async (req: Request, res: Response): Promise<vo
 // Add endpoint for candidate voting
 export const voteForCandidate = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { electionId, candidateId, hash, toaddress, amountsent, fromaddress } = req.body;
+    const { election_id, candidate_id, hash, toaddress, amountsent } = req.body;
+    const electionId = election_id;
+    const candidateId = candidate_id;
     
+    logger.info({ electionId, candidateId, hash, toaddress, amountsent }, 'Vote for candidate');
+
     if (!electionId || !candidateId) {
       logger.warn({ electionId, candidateId }, 'Missing election ID or candidate ID');
       res.status(400).json({ error: 'Election ID and candidate ID are required' });
       return;
     }
+
+    let votescounted;
+
+    // Verify the transaction
+    const verificationResult = await verifyTransactionByHash(toaddress, hash);
+    if (!verificationResult.isValid) {
+      logger.warn({ verificationResult }, 'Transaction verification failed');
+      res.status(400).json({ error: verificationResult.error || 'Transaction verification failed' });
+      return;
+    }
+
+    // Check if this address has already voted using raw SQL query
+    const existingVoteResult = await prisma.$queryRaw<Array<{ count: number }>>`
+      SELECT COUNT(*) as count
+      FROM candidate_votes 
+      WHERE fromaddress = ${verificationResult.address} 
+      AND election_snapshot_id = ${parseInt(electionId, 10)}
+    `;
+
+    const exists = existingVoteResult[0].count > 0;
+
+    logger.info({ exists, count: existingVoteResult[0].count }, 'Existing vote result');
+
+    if (exists) {
+      logger.warn({ fromaddress: verificationResult.address, candidateId }, 'Address has already voted for this candidate');
+      votescounted = null;
+    } else {
+      logger.info({ fromaddress: verificationResult.address, candidateId }, 'No existing vote found, proceeding with vote');
+      // Calculate vote weight and ensure we get the votes property
+      const voteWeight = calculateVoteWeight(amountsent, true);
+      votescounted = voteWeight ? Number(voteWeight.votes) : null;
+    }
+    
+
+    logger.info({ votescounted }, 'Vote counted');
+
+    // Continue with vote process regardless of existence
+    logger.info({ verificationResult }, 'Transaction verified successfully');
 
     // Check if the vote is for a primary or general election
     let isPrimary = false;
@@ -1021,7 +1124,7 @@ export const voteForCandidate = async (req: Request, res: Response): Promise<voi
           primary: true
         }
       });
-      
+
       if (!generalElection) {
         logger.warn({ electionId }, 'Election not found');
         res.status(404).json({ error: 'Election not found' });
@@ -1047,36 +1150,93 @@ export const voteForCandidate = async (req: Request, res: Response): Promise<voi
     }
 
     // Create a new vote
-    const voteData = {
+    const baseVoteData = {
       created: new Date(),
-      hash,
+      hash: hash,
       toaddress,
       amountsent: new Decimal(amountsent.toString()),
-      votescounted: 1, // Default to 1, can be adjusted based on token weight
+      votescounted: votescounted,
       validvote: true,
+      fromaddress: verificationResult.address,
       candidate_id: parseInt(candidateId, 10)
     };
 
     let vote;
 
     if (isPrimary) {
-      // For primary elections, use candidate_votes table
-      vote = await prisma.candidate_votes.create({
-        data: voteData
-      });
+      // For primary elections, use candidate_votes table with raw SQL
+      const result = await prisma.$queryRaw<Array<{
+        id: number;
+        created: Date;
+        hash: string;
+        toaddress: string;
+        fromaddress: string;
+        amountsent: Decimal;
+        votescounted: number | null;
+        validvote: boolean;
+        candidate_id: number;
+        election_snapshot_id: number;
+      }>>`
+        INSERT INTO candidate_votes (
+          created,
+          hash,
+          toaddress,
+          fromaddress,
+          amountsent,
+          votescounted,
+          validvote,
+          candidate_id,
+          election_snapshot_id
+        ) VALUES (
+          ${baseVoteData.created},
+          ${baseVoteData.hash},
+          ${baseVoteData.toaddress},
+          ${baseVoteData.fromaddress},
+          ${baseVoteData.amountsent},
+          ${baseVoteData.votescounted},
+          ${baseVoteData.validvote},
+          ${baseVoteData.candidate_id},
+          ${primaryId}
+        ) RETURNING *
+      `;
       
+      vote = result[0];
       logger.info({ voteId: vote.id, primaryId, candidateId }, 'Primary election vote recorded successfully');
     } else {
-      // For general elections, use election_votes table
-      const electionVoteData = {
-        ...voteData,
-        election_id: generalId
-      };
+      // For general elections, use election_votes table with raw SQL
+      const result = await prisma.$queryRaw<Array<{
+        id: number;
+        created: Date;
+        toaddress: string;
+        fromaddress: string;
+        amountsent: Decimal;
+        validvote: boolean;
+        election_id: number;
+        candidate_id: number;
+        votescounted: number;
+      }>>`
+        INSERT INTO election_votes (
+          created,
+          toaddress,
+          fromaddress,
+          amountsent,
+          validvote,
+          election_id,
+          candidate_id,
+          votescounted
+        ) VALUES (
+          ${new Date()},
+          ${toaddress},
+          ${verificationResult.address},
+          ${new Decimal(amountsent.toString())},
+          true,
+          ${generalId},
+          ${parseInt(candidateId, 10)},
+          ${votescounted}
+        ) RETURNING *
+      `;
       
-      vote = await prisma.election_votes.create({
-        data: electionVoteData
-      });
-      
+      vote = result[0];
       logger.info({ voteId: vote.id, generalId, candidateId }, 'General election vote recorded successfully');
     }
 

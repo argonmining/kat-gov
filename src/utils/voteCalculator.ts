@@ -21,9 +21,9 @@ export enum VotePowerLevel {
   Fortissimo = 'Fortissimo'
 }
 
-export const calculateVoteWeight = (amountSent: number | Decimal): VoteWeight => {
-  const minFee = config.proposals.votingFeeMin;
-  const maxFee = config.proposals.votingFeeMax;
+export const calculateVoteWeight = (amountSent: number | Decimal, isProposal: boolean = true): VoteWeight => {
+  const minFee = isProposal ? config.proposals.votingFeeMin : config.candidates.nominationFeeUsd || 0.1;
+  const maxFee = isProposal ? config.proposals.votingFeeMax : config.candidates.nominationFeeUsd || 100000;
   const maxTokenRatio = maxFee / minFee; // Dynamic ratio based on config
   
   const amount = new Decimal(amountSent.toString());
@@ -56,10 +56,12 @@ export const calculateVoteWeight = (amountSent: number | Decimal): VoteWeight =>
   };
 };
 
-export const getVotePowerLevel = (votes: number): VotePowerLevel => {
+export const getVotePowerLevel = (votes: number, isProposal: boolean = true): VotePowerLevel => {
+  const minFee = isProposal ? config.proposals.votingFeeMin : config.candidates.nominationFeeUsd || 0.1;
+  const maxFee = isProposal ? config.proposals.votingFeeMax : config.candidates.nominationFeeUsd || 100000;
   // Scale thresholds based on maximum possible votes
   const maxVotes = Math.floor(
-    Math.pow(2, Math.log2(config.proposals.votingFeeMax / config.proposals.votingFeeMin) * (2/3))
+    Math.pow(2, Math.log2(maxFee / minFee) * (2/3))
   );
   
   // Calculate dynamic thresholds as percentages of max votes
