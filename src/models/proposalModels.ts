@@ -132,6 +132,10 @@ export const getAllProposals = async (params: {
       skip: offset,
       include: {
         proposal_statuses: true,
+        proposal_no_votes_proposal_no_votes_proposal_idToproposals: true,
+        proposal_yes_votes_proposal_yes_votes_proposal_idToproposals: true,
+        proposal_no_votes_proposals_no_votesToproposal_no_votes: true,
+        proposal_yes_votes_proposals_yes_votesToproposal_yes_votes: true,
         proposal_wallets_proposals_walletToproposal_wallets: true,
         proposal_types: true,
         proposal_nominations: {
