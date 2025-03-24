@@ -383,6 +383,8 @@ export const getAllProposalYesVotes = async (): Promise<ProposalYesVote[]> => {
 export const createProposalYesVote = async (vote: Omit<ProposalYesVote, 'id' | 'created'>): Promise<ProposalYesVote> => {
   try {
     const { proposal_id, toaddress, fromaddress, amountsent, hash, proposal_snapshot_id } = vote;
+
+    logger.info({ proposal_id, toaddress, fromaddress, amountsent, hash, proposal_snapshot_id }, 'Creating proposal yes vote');
     if (!proposal_id || !toaddress || !fromaddress || !amountsent) {
       throw new Error('Missing required fields for vote');
     }
@@ -418,23 +420,23 @@ export const createProposalYesVote = async (vote: Omit<ProposalYesVote, 'id' | '
 
     // Get proposal and its snapshot
     const proposal = await getProposalById(proposal_id);
-    if (!proposal || !proposal.snapshot) {
-      throw new Error('Proposal or snapshot not found');
+    if (!proposal ) {
+      throw new Error('Proposal not found');
     }
 
-    const snapshot = await prisma.proposal_snapshots.findUnique({
-      where: { id: Number(proposal.snapshot) }
-    });
+    // const snapshot = await prisma.proposal_snapshots.findUnique({
+    //   where: { id: Number(proposal.snapshot) }
+    // });
 
-    if (!snapshot || !snapshot.data) {
-      throw new Error('Snapshot data not found');
-    }
+    // if (!snapshot || !snapshot.data) {
+    //   throw new Error('Snapshot data not found');
+    // }
 
     // Validate amount against snapshot
-    const isValid = await validateVoteAmount(fromaddress, amountsent, snapshot.data);
-    if (!isValid) {
-      throw new Error('Invalid vote amount: insufficient balance at snapshot time');
-    }
+    // const isValid = await validateVoteAmount(fromaddress, amountsent, null);
+    // if (!isValid) {
+    //   throw new Error('Invalid vote amount: insufficient balance at snapshot time');
+    // }
 
     // Calculate vote weight
     const voteWeight = calculateVoteWeight(amountsent);
@@ -448,12 +450,12 @@ export const createProposalYesVote = async (vote: Omit<ProposalYesVote, 'id' | '
         hash,
         votescounted: voteWeight.votes,
         validvote: true,
-        proposal_snapshot_id: Number(proposal.snapshot),
+        // proposal_snapshot_id: Number(proposal.snapshot),
         created: new Date()
       },
       include: {
         proposals_proposal_yes_votes_proposal_idToproposals: true,
-        proposal_snapshots: true
+        // proposal_snapshots: true
       }
     });
 
