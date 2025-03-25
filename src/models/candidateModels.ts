@@ -32,6 +32,11 @@ export const verificationStore = new Map<string, {
 }>();
 
 // Candidate Votes
+/**
+ * @deprecated This function is no longer used directly by the frontend (kat-gov-web).
+ * The related route '/election/candidate/votes' is deprecated.
+ * See routes/govRoutes.ts for more information on deprecated routes.
+ */
 export const createCandidateVote = async (vote: { 
   candidate_id: number;
   toaddress: string;
@@ -647,6 +652,11 @@ export const createPrimaryCandidate = async (data: {
   }
 };
 
+/**
+ * @deprecated This function is no longer used by the frontend (kat-gov-web).
+ * The related route '/candidate/nominate' is deprecated.
+ * See routes/govRoutes.ts for more information on deprecated routes.
+ */
 export const nominateCandidate = async (
   primaryId: number,
   name: string,

@@ -844,6 +844,10 @@ export const getAllElectionPrimaries = async (): Promise<PrimaryElection[]> => {
   }
 };
 
+/**
+ * @deprecated This function is no longer used by the frontend (kat-gov-web).
+ * See routes/govRoutes.ts for more information on deprecated routes.
+ */
 export async function createElectionPrimary(electionId: number): Promise<any> {
   try {
     // 1. Check if election exists and isn't already in a primary

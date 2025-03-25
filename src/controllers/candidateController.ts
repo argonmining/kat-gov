@@ -55,7 +55,10 @@ const _getCandidateNominationFee = async (req: Request, res: Response): Promise<
   res.status(200).json({ fee });
 };
 
-// Candidate Votes
+/**
+ * @deprecated This function is no longer used by the frontend (kat-gov-web).
+ * See routes/govRoutes.ts for more information on deprecated routes.
+ */
 const _submitCandidateVote = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const { candidate_id, toaddress, amountsent, hash } = req.body;
   if (!candidate_id || !toaddress || !amountsent) {
@@ -439,6 +442,10 @@ const _generateCandidateWallet = async (req: Request, res: Response): Promise<vo
 // Export wrapped handlers with error handling
 // ==================================================================================
 export const getCandidateNominationFee = withDirectErrorHandling(_getCandidateNominationFee, logger);
+/**
+ * @deprecated This function is no longer used by the frontend (kat-gov-web).
+ * See routes/govRoutes.ts for more information on deprecated routes.
+ */
 export const submitCandidateVote = withErrorHandling(_submitCandidateVote, logger);
 export const fetchVotesForCandidate = withDirectErrorHandling(_fetchVotesForCandidate, logger);
 export const fetchAllCandidateWallets = withErrorHandling(_fetchAllCandidateWallets, logger);

@@ -702,6 +702,10 @@ export const fetchAllElectionPrimaries = async (req: Request, res: Response): Pr
   }
 };
 
+/**
+ * @deprecated This function is no longer used by the frontend (kat-gov-web).
+ * See routes/govRoutes.ts for more information on deprecated routes.
+ */
 export const createElectionPrimaryHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const { electionId } = req.params;
@@ -763,7 +767,10 @@ export const fetchElectionPrimaryById = async (req: Request, res: Response): Pro
   }
 };
 
-// New function to assign candidates to an election
+/**
+ * @deprecated This function is no longer used by the frontend (kat-gov-web).
+ * See routes/govRoutes.ts for more information on deprecated routes.
+ */
 export const assignCandidatesToElection = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const electionId = parseInt(req.params.id, 10);
@@ -886,79 +893,10 @@ export const assignCandidatesToElection = async (req: Request, res: Response, ne
   }
 };
 
-// New function to fetch elections with their candidates
-export const fetchElectionsWithCandidates = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    logger.info('Fetching all elections with candidates');
-    
-    const elections = await prisma.elections.findMany({
-      include: {
-        election_candidates_elections_firstcandidateToelection_candidates: true,
-        election_candidates_elections_secondcandidateToelection_candidates: true,
-        election_types: true,
-        election_positions: true,
-        election_statuses: true,
-        election_snapshots: true
-      }
-    });
-    
-    // Transform the data to a more convenient structure for the frontend
-    const transformedElections = elections.map(election => {
-      return {
-        id: election.id,
-        title: election.title,
-        description: election.description,
-        reviewed: election.reviewed,
-        approved: election.approved,
-        votesactive: election.votesactive,
-        startDate: election.openvote?.toISOString(),
-        endDate: election.closevote?.toISOString(),
-        created: election.created?.toISOString(),
-        type: {
-          id: election.type,
-          name: election.election_types?.name
-        },
-        position: {
-          id: election.position,
-          title: election.election_positions?.title,
-          description: election.election_positions?.description
-        },
-        status: {
-          id: election.status,
-          name: election.election_statuses?.name
-        },
-        candidates: {
-          first: election.election_candidates_elections_firstcandidateToelection_candidates 
-            ? {
-                id: election.election_candidates_elections_firstcandidateToelection_candidates.id,
-                name: election.election_candidates_elections_firstcandidateToelection_candidates.name,
-                twitter: election.election_candidates_elections_firstcandidateToelection_candidates.twitter,
-                discord: election.election_candidates_elections_firstcandidateToelection_candidates.discord,
-                telegram: election.election_candidates_elections_firstcandidateToelection_candidates.telegram
-              }
-            : null,
-          second: election.election_candidates_elections_secondcandidateToelection_candidates
-            ? {
-                id: election.election_candidates_elections_secondcandidateToelection_candidates.id,
-                name: election.election_candidates_elections_secondcandidateToelection_candidates.name,
-                twitter: election.election_candidates_elections_secondcandidateToelection_candidates.twitter,
-                discord: election.election_candidates_elections_secondcandidateToelection_candidates.discord,
-                telegram: election.election_candidates_elections_secondcandidateToelection_candidates.telegram
-              }
-            : null
-        }
-      };
-    });
-    
-    logger.debug({ electionCount: elections.length }, 'Elections with candidates retrieved successfully');
-    res.status(200).json(transformedElections);
-  } catch (error) {
-    logger.error({ error }, 'Error fetching elections with candidates');
-    next(error);
-  }
-};
-
-// Add endpoint for candidate nomination
+/**
+ * @deprecated This function is no longer used by the frontend (kat-gov-web).
+ * See routes/govRoutes.ts for more information on deprecated routes.
+ */
 export const nominateCandidate = async (req: Request, res: Response): Promise<void> => {
   try {
     const { primaryId, candidateId, hash, toaddress, amountsent } = req.body;
@@ -1247,7 +1185,10 @@ export const voteForCandidate = async (req: Request, res: Response): Promise<voi
   }
 };
 
-// Add endpoint to fetch elections with primary status
+/**
+ * @deprecated This function is no longer used by the frontend (kat-gov-web).
+ * See routes/govRoutes.ts for more information on deprecated routes.
+ */
 export const fetchElectionsWithPrimaries = async (req: Request, res: Response): Promise<void> => {
   try {
     logger.info('Fetching all elections with primaries');
