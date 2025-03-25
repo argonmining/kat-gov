@@ -106,7 +106,6 @@ router.delete('/proposal/statuses/:id', proposalController.removeProposalStatus)
 router.get('/elections', electionController.fetchAllElections);
 router.get('/elections/primaries', electionController.fetchAllElectionPrimaries);
 router.get('/elections/with-candidates', electionController.fetchElectionsWithCandidates);
-router.get('/elections/with-primaries', electionController.fetchElectionsWithPrimaries);
 router.get('/election/types', electionController.fetchAllElectionTypes);
 router.get('/election/statuses', electionController.fetchAllElectionStatuses);
 router.get('/election/positions', electionController.fetchAllElectionPositions);
@@ -124,17 +123,14 @@ router.post('/election/positions', electionController.addElectionPosition);
 router.post('/election/candidates', electionController.submitElectionCandidate);
 router.post('/election/candidate/wallets', candidateController.addCandidateWallet);
 router.post('/election/candidate/nominations', candidateController.submitCandidateNomination);
-router.post('/election/candidate/votes', candidateController.submitCandidateVote);
-router.post('/candidate/nominate', electionController.nominateCandidate);
 router.post('/candidate/vote', electionController.voteForCandidate);
+router.post('/election/candidate/wallet/generate', candidateController.generateCandidateWallet);
 
 // Parameterized endpoints
-router.post('/election/:electionId/primary', electionController.createElectionPrimaryHandler);
 router.get('/election/:id/primary', electionController.fetchElectionPrimaryById);
 router.get('/election/:id', electionController.fetchElectionById);
 router.put('/election/:id', electionController.modifyElection);
 router.delete('/election/:id', electionController.removeElection);
-router.post('/election/:id/candidates', electionController.assignCandidatesToElection);
 router.get('/election/:id/candidates', electionController.fetchElectionCandidatesByElectionId);
 
 // Type, status, and position management
@@ -153,7 +149,6 @@ router.put('/election/candidate/wallets/:id', candidateController.modifyCandidat
 router.delete('/election/candidate/wallets/:id', candidateController.removeCandidateWallet);
 router.put('/election/candidate/nominations/:id', candidateController.modifyCandidateNomination);
 router.delete('/election/candidate/nominations/:id', candidateController.removeCandidateNomination);
-router.post('/election/candidate/wallet/generate', candidateController.generateCandidateWallet);
 
 // ============================================================================
 // Snapshot Routes
@@ -182,6 +177,18 @@ router.post('/burn/return-gov', burnController.returnGovKaspaTokens);
 router.post('/burn/drop-gas', burnController.dropKasGasTokens);
 router.post('/burn/yes-wallet', burnController.burnYesWalletTokens);
 router.post('/burn/no-wallet', burnController.burnNoWalletTokens);
+
+// ============================================================================
+// DEPRECATED Routes
+// ============================================================================
+// The following routes are not currently used by the frontend (kat-gov-web)
+
+// Election routes
+// router.get('/elections/with-primaries', electionController.fetchElectionsWithPrimaries);
+// router.post('/election/candidate/votes', candidateController.submitCandidateVote);
+// router.post('/candidate/nominate', electionController.nominateCandidate);
+// router.post('/election/:electionId/primary', electionController.createElectionPrimaryHandler);
+// router.post('/election/:id/candidates', electionController.assignCandidatesToElection);
 
 // Apply error handling middleware last
 router.use(errorHandler);
