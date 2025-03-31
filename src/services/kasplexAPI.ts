@@ -32,7 +32,7 @@ const apiFetch = $fetch.create({
 });
 
 interface KRC20Operation {
-  amt: string;
+  amt: string | number;
   from: string;
   to: string;
   tick: string;

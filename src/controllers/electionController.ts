@@ -676,7 +676,7 @@ export const fetchAllElectionPrimaries = async (req: Request, res: Response): Pr
   try {
     logger.info('Fetching all election primaries');
     const primaries = await getAllElectionPrimaries();
-
+    // logger.info({ primaries }, 'Primaries');
     // Transform to match frontend format with complete data
     const transformedPrimaries = primaries.map(primary => ({
       id: primary.id,
@@ -728,10 +728,10 @@ export const fetchElectionPrimaryById = async (req: Request, res: Response): Pro
     const id = parseInt(req.params.id);
     logger.info({ id }, 'Fetching primary election by ID');
 
-    // Get the election and check if it's a primary
-    const primary = await prisma.election_primaries.findFirst({
+    // Get the primary election by its ID
+    const primary = await prisma.election_primaries.findUnique({
       where: {
-        election_id: id
+        id: id
       },
       include: {
         election: {
@@ -750,6 +750,8 @@ export const fetchElectionPrimaryById = async (req: Request, res: Response): Pro
         }
       }
     });
+
+    logger.info({ primary }, 'Primary');
 
     if (!primary) {
       res.status(404).json({ error: 'Primary election not found' });
@@ -1061,15 +1063,44 @@ export const voteForCandidate = async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    let votescounted;
-
-    // Verify the transaction
+    // Verify the transaction first to get the amount
     const verificationResult = await verifyTransactionByHash(toaddress, hash);
     if (!verificationResult.isValid) {
       logger.warn({ verificationResult }, 'Transaction verification failed');
+      // Check if the error is due to a duplicate hash
+      if (verificationResult.error?.includes('Hash was already used')) {
+        // Check if this is actually a valid vote for this election
+        const existingVote = await prisma.candidate_votes.findFirst({
+          where: {
+            hash,
+            election_snapshot_id: parseInt(electionId, 10)
+          }
+        });
+        
+        if (existingVote) {
+          logger.info({ hash, electionId }, 'Vote already recorded for this election');
+          res.status(200).json({ 
+            message: 'Vote already recorded for this election',
+            vote: existingVote
+          });
+          return;
+        }
+      }
       res.status(400).json({ error: verificationResult.error || 'Transaction verification failed' });
       return;
     }
+
+    // Use the amount from verification result
+    const voteAmount = verificationResult.amt;
+    if (!voteAmount) {
+      logger.warn({ verificationResult }, 'No amount found in verification result');
+      res.status(400).json({ error: 'Could not determine vote amount from transaction' });
+      return;
+    }
+
+    // Convert voteAmount to Decimal
+    const voteAmountDecimal = new Decimal(voteAmount.toString());
+    let votescounted;
 
     // Check if this address has already voted using raw SQL query
     const existingVoteResult = await prisma.$queryRaw<Array<{ count: number }>>`
@@ -1085,18 +1116,21 @@ export const voteForCandidate = async (req: Request, res: Response): Promise<voi
 
     if (exists) {
       logger.warn({ fromaddress: verificationResult.address, candidateId }, 'Address has already voted for this candidate');
-      votescounted = null;
-    } else {
-      logger.info({ fromaddress: verificationResult.address, candidateId }, 'No existing vote found, proceeding with vote');
-      // Calculate vote weight and ensure we get the votes property
-      const voteWeight = calculateVoteWeight(amountsent, true);
-      votescounted = voteWeight ? Number(voteWeight.votes) : null;
+      // Get the existing vote details
+      const existingVote = await prisma.candidate_votes.findFirst({
+        where: {
+          fromaddress: verificationResult.address,
+          election_snapshot_id: parseInt(electionId, 10)
+        }
+      });
+      
+      res.status(200).json({ 
+        message: 'Address has already voted in this election',
+        vote: existingVote
+      });
+      return;
     }
-    
 
-    logger.info({ votescounted }, 'Vote counted');
-
-    // Continue with vote process regardless of existence
     logger.info({ verificationResult }, 'Transaction verified successfully');
 
     // Check if the vote is for a primary or general election
@@ -1149,12 +1183,18 @@ export const voteForCandidate = async (req: Request, res: Response): Promise<voi
       return;
     }
 
+    // Calculate vote weight and ensure we get the votes property
+    const voteWeight = calculateVoteWeight(Number(voteAmount), true);
+    votescounted = voteWeight ? Number(voteWeight.votes) : null;
+
+    logger.info({ votescounted, voteAmount }, 'Vote counted');
+
     // Create a new vote
     const baseVoteData = {
       created: new Date(),
       hash: hash,
       toaddress,
-      amountsent: new Decimal(amountsent.toString()),
+      amountsent: voteAmountDecimal,
       votescounted: votescounted,
       validvote: true,
       fromaddress: verificationResult.address,
@@ -1228,7 +1268,7 @@ export const voteForCandidate = async (req: Request, res: Response): Promise<voi
           ${new Date()},
           ${toaddress},
           ${verificationResult.address},
-          ${new Decimal(amountsent.toString())},
+          ${voteAmountDecimal},
           true,
           ${generalId},
           ${parseInt(candidateId, 10)},
@@ -1269,6 +1309,8 @@ export const fetchElectionsWithPrimaries = async (req: Request, res: Response): 
         }
       }
     });
+
+    logger.info({ elections }, 'Elections with primaries');
 
     const transformedElections = elections.map(election => ({
       id: election.id,

@@ -384,6 +384,8 @@ export const createProposalYesVote = async (vote: Omit<ProposalYesVote, 'id' | '
   try {
     const { proposal_id, toaddress, fromaddress, amountsent, hash, proposal_snapshot_id } = vote;
 
+    logger.debug({ proposal_id, toaddress, fromaddress, amountsent, hash, proposal_snapshot_id }, 'Creating proposal yes vote');
+
     logger.info({ proposal_id, toaddress, fromaddress, amountsent, hash, proposal_snapshot_id }, 'Creating proposal yes vote');
     if (!proposal_id || !toaddress || !fromaddress || !amountsent) {
       throw new Error('Missing required fields for vote');
@@ -497,7 +499,7 @@ export const createProposalNoVote = async (vote: Omit<ProposalNoVote, 'id' | 'cr
       throw new Error('Missing required fields for vote');
     }
 
-    logger.info({ proposal_id, toaddress, fromaddress, amountsent }, 'Creating proposal no vote');
+    logger.info({ proposal_id, toaddress, fromaddress, amountsent }, 'Info Creating proposal no vote');
 
     // Check for existing votes in both yes and no vote tables
     const existingNoVote = await prisma.proposal_no_votes.findFirst({
@@ -528,55 +530,52 @@ export const createProposalNoVote = async (vote: Omit<ProposalNoVote, 'id' | 'cr
 
     // Get proposal and its snapshot
     const proposal = await getProposalById(proposal_id);
-    if (!proposal || !proposal.snapshot) {
-      throw new Error('Proposal or snapshot not found');
+    if (!proposal) {
+      throw new Error('Proposal not found');
     }
 
-    const snapshot = await prisma.proposal_snapshots.findUnique({
-      where: { id: Number(proposal.snapshot) }
-    });
+    // const snapshot = await prisma.proposal_snapshots.findUnique({
+    //   where: { id: Number(proposal.snapshot) }
+    // });
 
-    if (!snapshot || !snapshot.data) {
-      throw new Error('Snapshot data not found');
-    }
+    // if (!snapshot || !snapshot.data) {
+    //   throw new Error('Snapshot data not found');
+    // }
 
     // Validate amount against snapshot
-    const isValid = await validateVoteAmount(fromaddress, amountsent, snapshot.data);
+    const isValid = await validateVoteAmount(fromaddress, amountsent, null);
     if (!isValid) {
       throw new Error('Invalid vote amount: insufficient balance at snapshot time');
     }
 
     // Calculate vote weight
     const voteWeight = calculateVoteWeight(amountsent);
+
+    const data = {
+      proposal_id,
+      toaddress,
+      fromaddress,
+      amountsent: amountsent,
+      hash,
+      created: new Date(),
+      votescounted: voteWeight.votes,
+      validvote: true,
+      proposal_snapshot_id: null // Set to null since it's deprecated
+    }
+
+    logger.debug({ data }, 'Data for proposal no vote');
     
     const result = await prisma.proposal_no_votes.create({
-      data: {
-        proposal_id,
-        toaddress,
-        fromaddress,
-        amountsent,
-        hash,
-        votescounted: voteWeight.votes,
-        validvote: true,
-        proposal_snapshot_id: Number(proposal.snapshot),
-        created: new Date()
-      },
-      include: {
-        proposals_proposal_no_votes_proposal_idToproposals: true,
-        proposal_snapshots: true
-      }
+      data
     });
 
-    logger.debug({ 
-      id: result.id, 
-      votes: voteWeight.votes,
-      powerLevel: voteWeight.powerLevel 
-    }, 'Proposal no vote created successfully');
+    logger.debug({ result }, 'Result for proposal no vote');
     
+    logger.debug({ id: result.id }, 'Proposal no vote created successfully');
     return result as unknown as ProposalNoVote;
   } catch (error) {
     logger.error({ error, vote }, 'Error creating proposal no vote');
-    throw error;
+    throw new Error('Could not create proposal no vote');
   }
 };
 

@@ -462,7 +462,7 @@ export const verifyPrimaryCandidateTransaction = async (data: {
                   status: 'completed',
                   transaction: {
                     hash: operation.hashRev,
-                    amount: operation.amt,
+                    amount: operation.amt.toString(),
                     from: operation.from,
                     to: operation.to,
                     ticker: operation.tick

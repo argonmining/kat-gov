@@ -8,6 +8,8 @@ interface TransactionVerificationResult {
     isValid: boolean;
     hash?: string;
     error?: string;
+    address?: string;
+    amount?: string;
 }
 
 export async function verifyTransaction(
@@ -87,7 +89,13 @@ export const convertToChainAmount = (decimalAmount: string): string => {
   }
 };
 
-export const verifyTransactionByHash = async (address: string, hash: string): Promise<{ isValid: boolean; error?: string; hash?: string, address?: string }> => {
+export const verifyTransactionByHash = async (address: string, hash: string): Promise<{ 
+  isValid: boolean; 
+  error?: string; 
+  hash?: string; 
+  address?: string; 
+  amt?: string | number;
+}> => {
   let transactionCheckAttempts = 0;
   const maxAttempts = 30; // 90 seconds with 3-second intervals
 
@@ -107,19 +115,27 @@ export const verifyTransactionByHash = async (address: string, hash: string): Pr
         continue;
       }
 
-    // Find transaction with matching hash
-    const matchingTransaction = operations.result.find(operation => 
-      operation.hashRev === hash && 
-      operation.txAccept === '1' && 
-      operation.opAccept === '1'
-    );
+      // Find transaction with matching hash
+      const matchingTransaction = operations.result.find(operation => 
+        operation.hashRev === hash && 
+        operation.txAccept === '1' && 
+        operation.opAccept === '1'
+      );
 
       if (matchingTransaction) {
-        logger.info({ hash, address }, 'Transaction verified successfully');
+        logger.info({ 
+          hash, 
+          address,
+          amount: matchingTransaction.amt,
+          from: matchingTransaction.from,
+          to: matchingTransaction.to,
+          tick: matchingTransaction.tick
+        }, 'Transaction verified successfully');
         return {
           isValid: true,
           hash: matchingTransaction.hashRev,
-          address: matchingTransaction.from
+          address: matchingTransaction.from,
+          amt: matchingTransaction.amt
         };
       }
 
@@ -133,7 +149,6 @@ export const verifyTransactionByHash = async (address: string, hash: string): Pr
     }
   }
 
-  logger.warn({ address, hash }, 'Transaction verification timed out after all attempts');
   return {
     isValid: false,
     error: 'Transaction verification timed out'
